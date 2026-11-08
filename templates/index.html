@@ -67,6 +67,8 @@
            data-theme-color aria-label="Choose website theme color">
   </label>
   <button id="refresh">↻ Refresh stations</button>
+  <button id="check-updates" type="button">↻ Check for updates</button>
+  <span id="update-status" role="status" aria-live="polite"></span>
 </header>
 
 <main>
@@ -676,6 +678,64 @@ document.querySelector('#ask').onsubmit = async event => {
   answer.textContent = (await response.json()).answer;
 };
 
+
+
+
+const updateButton = document.querySelector('#check-updates');
+const updateStatus = document.querySelector('#update-status');
+
+updateButton.addEventListener('click', async () => {
+  updateButton.disabled = true;
+  updateButton.textContent = 'Checking…';
+  updateStatus.textContent = '';
+
+  try {
+    const response = await fetch('/api/update/check', {
+      cache: 'no-store'
+    });
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Update check failed.');
+    }
+
+    updateStatus.textContent = result.message;
+
+    if (result.update_available) {
+      const approved = confirm(
+        `Quad Radio ${result.latest_version} is available. ` +
+        `Install it now? Your listening history, notes and saved songs will be preserved.`
+      );
+
+      if (approved) {
+        updateButton.textContent = 'Installing…';
+        updateStatus.textContent = 'Preparing the update. The dashboard will restart shortly.';
+
+        const installResponse = await fetch('/api/update/install', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: '{}'
+        });
+        const installResult = await installResponse.json();
+
+        if (!installResponse.ok) {
+          throw new Error(installResult.error || 'Could not start installation.');
+        }
+
+        updateStatus.textContent =
+          `Installing version ${installResult.version}. Please wait for the dashboard to restart.`;
+
+        setTimeout(() => window.location.reload(), 12000);
+        return;
+      }
+    }
+  } catch (error) {
+    updateStatus.textContent = error.message;
+  } finally {
+    updateButton.disabled = false;
+    updateButton.textContent = '↻ Check for updates';
+  }
+});
 
 
 load();

@@ -1,5 +1,8 @@
 import os
 import io
+import ipaddress
+import subprocess
+import sys
 import csv, io, json, re, sqlite3, threading, time, webbrowser
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -1480,6 +1483,120 @@ def ask():
         return jsonify({"answer":result.json().get("response","").strip()})
     except Exception as e:
         return jsonify({"answer":f"Could not reach Ollama ({e}). Check `ollama list` and the model name in config.json."})
+
+
+
+# ---- Secure local update controls ----
+
+def _update_request_is_local():
+    """Only allow update operations from the local Chromebook browser."""
+    try:
+        remote = ipaddress.ip_address(request.remote_addr or "")
+        if not remote.is_loopback:
+            return False
+
+        from urllib.parse import urlsplit
+
+        host = (urlsplit("//" + request.host).hostname or "").lower()
+        if host not in {"localhost", "127.0.0.1", "::1"}:
+            return False
+
+        origin = request.headers.get("Origin")
+        if origin:
+            origin_host = (urlsplit(origin).hostname or "").lower()
+            if origin_host not in {"localhost", "127.0.0.1", "::1"}:
+                return False
+
+        return True
+    except Exception:
+        return False
+
+
+@app.get("/api/update/check")
+def update_check():
+    if not _update_request_is_local():
+        return jsonify({"error": "Local access only."}), 403
+
+    try:
+        from updater import latest_release
+
+        latest, _, _ = latest_release()
+        version_file = BASE / "VERSION"
+        current = version_file.read_text().strip() if version_file.exists() else "0.0.0"
+
+        def version_tuple(value):
+            parts = tuple(int(part) for part in value.split("."))
+            return parts + (0,) * (3 - len(parts))
+
+        available = version_tuple(latest) > version_tuple(current)
+
+        return jsonify({
+            "current_version": current,
+            "latest_version": latest,
+            "update_available": available,
+            "message": (
+                f"Version {latest} is available."
+                if available else
+                f"Quad Radio is up to date ({current})."
+            )
+        })
+    except Exception as error:
+        return jsonify({
+            "error": f"Could not check GitHub releases: {error}"
+        }), 502
+
+
+@app.post("/api/update/install")
+def update_install():
+    if not _update_request_is_local():
+        return jsonify({"error": "Local access only."}), 403
+
+    try:
+        from updater import latest_release
+
+        latest, _, _ = latest_release()
+        version_file = BASE / "VERSION"
+        current = version_file.read_text().strip() if version_file.exists() else "0.0.0"
+
+        def version_tuple(value):
+            parts = value.split(".")
+            if len(parts) != 3 or not all(part.isdigit() for part in parts):
+                raise ValueError("Invalid application version.")
+            return tuple(int(part) for part in parts)
+
+        if version_tuple(latest) <= version_tuple(current):
+            return jsonify({
+                "error": "This version is already installed or is older."
+            }), 409
+
+        log_path = DATA_DIR / "updater.log"
+        log_file = open(log_path, "a", buffering=1)
+
+        subprocess.Popen(
+            [
+                sys.executable,
+                str(BASE / "updater.py"),
+                "--install",
+                "--app", str(BASE),
+                "--data", str(DATA_DIR),
+                "--pid", str(os.getpid()),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            close_fds=True,
+        )
+
+        return jsonify({
+            "started": True,
+            "version": latest,
+            "message": "Update downloaded and validated; installation is starting."
+        }), 202
+
+    except Exception as error:
+        return jsonify({"error": str(error)}), 500
+
 
 if __name__ == "__main__":
     init_db()

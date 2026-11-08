@@ -2059,3 +2059,55 @@ body > *:not(#quad-particles) {
   outline-offset: 3px;
   border-radius: 3px;
 }
+
+
+/* QUAD RADIO 1.4.1 — SINGLE-LINE PAGE NAVIGATION */
+.site-nav {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    gap: clamp(5px, 0.8vw, 9px);
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+.site-nav::-webkit-scrollbar {
+    display: none;
+}
+
+.site-nav a {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    text-align: center;
+    padding: 9px 13px;
+    line-height: 1.2;
+}
+
+@media (max-width: 800px) {
+    .site-nav {
+        width: 100%;
+        max-width: 100%;
+        gap: 7px;
+    }
+
+    .site-nav a {
+        padding: 9px 12px;
+        font-size: 13px;
+    }
+}
+
+@media (max-width: 420px) {
+    .site-nav {
+        gap: 5px;
+    }
+
+    .site-nav a {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+}

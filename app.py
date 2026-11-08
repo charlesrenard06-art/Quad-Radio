@@ -300,6 +300,119 @@ def parse_mix951(soup, station):
     return dedupe(output)
 
 
+
+def parse_live955(soup, station):
+    """Parse Live 95.5's official dated recently-played history."""
+    from zoneinfo import ZoneInfo
+
+    output = []
+    page_text = soup.get_text(" ", strip=True)
+
+    date_match = re.search(
+        r"(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+"
+        r"([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})",
+        page_text,
+        re.I
+    )
+    if not date_match:
+        return output
+
+    month, day, year = date_match.groups()
+    date_value = datetime.strptime(
+        f"{month} {day} {year}", "%B %d %Y"
+    ).date()
+
+    timezone = ZoneInfo(station.get("timezone", "America/Los_Angeles"))
+    time_pattern = re.compile(r"^\d{1,2}:\d{2}\s*(?:am|pm)$", re.I)
+
+    seen = set()
+
+    for time_node in soup.find_all(string=time_pattern):
+        time_text = str(time_node).strip()
+        time_tag = time_node.parent
+        title = artist = ""
+
+        # Prefer explicitly named title and artist fields.
+        ancestor = time_tag
+        for _ in range(7):
+            if ancestor is None:
+                break
+
+            title_node = ancestor.select_one(
+                '[class*="song-title"], [class*="track-title"], '
+                '[class*="title"]'
+            )
+            artist_node = ancestor.select_one(
+                '[class*="artist"], [class*="performer"]'
+            )
+
+            if title_node and artist_node:
+                title = title_node.get_text(" ", strip=True)
+                artist = artist_node.get_text(" ", strip=True)
+                break
+
+            ancestor = ancestor.parent
+
+        # Fallback: identify separate title/artist text elements
+        # in the nearest track container.
+        if not title or not artist:
+            ancestor = time_tag
+            for _ in range(7):
+                if ancestor is None:
+                    break
+
+                pieces = []
+                for node in ancestor.find_all(True):
+                    if node.find(True):
+                        continue
+                    value = node.get_text(" ", strip=True)
+                    if (
+                        value
+                        and value != time_text
+                        and not time_pattern.match(value)
+                        and value not in pieces
+                    ):
+                        pieces.append(value)
+
+                if len(pieces) == 2:
+                    title, artist = pieces
+                    break
+
+                ancestor = ancestor.parent
+
+        title = re.sub(r"\s+", " ", title).strip()
+        artist = re.sub(r"\s+", " ", artist).strip()
+
+        if not title or not artist:
+            continue
+
+        try:
+            played_time = datetime.strptime(
+                time_text.replace(" ", "").lower(),
+                "%I:%M%p"
+            ).time()
+
+            played = datetime.combine(
+                date_value, played_time, tzinfo=timezone
+            )
+        except ValueError:
+            continue
+
+        key = (title.casefold(), artist.casefold(), played.isoformat())
+        if key in seen:
+            continue
+        seen.add(key)
+
+        output.append((
+            title,
+            artist,
+            played.isoformat(),
+            "source"
+        ))
+
+    return output
+
+
 def parse_netplayer(soup, station):
     """Parse Netplayer song rows using their actual UTC play timestamps."""
     from datetime import timezone
@@ -712,6 +825,9 @@ def collect_station(station):
     url = station.get("url", "").strip()
     sid = station["id"]
 
+    if sid == "live955":
+        url = "https://www.live955.com/recently-played/"
+
     # Make progress visible immediately, before contacting the source.
     save_status(sid, checked, "checking", "Checking station source...")
 
@@ -723,7 +839,7 @@ def collect_station(station):
         return
 
     try:
-        kind = station.get("source_type")
+        kind = "live955" if sid == "live955" else station.get("source_type")
 
         if kind == "mix951":
             rows, source_url = fetch_mix951(station)
@@ -746,7 +862,9 @@ def collect_station(station):
             for tag in soup(["script", "style", "noscript", "svg"]):
                 tag.decompose()
 
-            if kind == "netplayer":
+            if kind == "live955":
+                rows = parse_live955(soup, station)
+            elif kind == "netplayer":
                 rows = parse_netplayer(soup, station)
             elif kind == "fulldial":
                 rows = parse_fulldial(soup, station)

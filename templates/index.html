@@ -43,12 +43,47 @@
 
 
 
+
+#network-status {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:9px 16px;
+  width:fit-content;
+  max-width:100%;
+  margin:0 0 18px;
+  padding:10px 13px;
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:10px;
+  background:rgba(0,0,0,.22);
+  font-size:12px;
+}
+#network-status .net-item { display:flex; align-items:center; gap:6px; }
+#network-status .net-dot {
+  width:8px; height:8px; border-radius:50%;
+  background:#999; display:inline-block;
+}
+#network-status .net-dot.online { background:#48d597; }
+#network-status .net-dot.offline { background:#ff596b; }
+#network-status .net-label { opacity:.72; }
+
 </style>
 <script src="/static/theme.js" defer></script>
 </head>
 
 <body>
 <header>
+  <section id="network-status" aria-live="polite" aria-label="Connection status">
+    <span class="net-item"><i id="net-wifi" class="net-dot"></i>
+      <span class="net-label">Network:</span>
+      <strong id="net-network">Checking…</strong></span>
+    <span class="net-item"><i id="net-internet" class="net-dot"></i>
+      <span class="net-label">Internet:</span>
+      <strong id="net-internet-text">Checking…</strong></span>
+    <span class="net-item"><i id="net-radio" class="net-dot"></i>
+      <span class="net-label">Radio:</span>
+      <strong id="net-radio-text">Not playing</strong></span>
+  </section>
   <div>
     <div class="eyebrow">PERSONAL BROADCAST ARCHIVE</div>
     <h1>GR<span>studios</span></h1>
@@ -520,6 +555,93 @@ dashboardAudio.addEventListener("error", () => {
   activeAudioStation = null;
   syncRadioPlayers();
 });
+
+
+let radioConnectionState = "Not playing";
+
+function setNetworkIndicator(id, textId, online, message) {
+  const dot = document.getElementById(id);
+  const label = document.getElementById(textId);
+  if (dot) dot.className = "net-dot " + (online ? "online" : "offline");
+  if (label) label.textContent = message;
+}
+
+async function refreshNetworkStatus() {
+  const wifiDot = document.getElementById("net-wifi");
+  const wifiText = document.getElementById("net-network");
+  const internetText = document.getElementById("net-internet-text");
+
+  if (!navigator.onLine) {
+    setNetworkIndicator("net-wifi", "net-network", false, "Offline");
+    setNetworkIndicator("net-internet", "net-internet-text", false, "No connection");
+    return;
+  }
+
+  if (wifiDot) wifiDot.className = "net-dot online";
+  if (wifiText) wifiText.textContent = "Network connected";
+
+  try {
+    const response = await fetch("/api/network-status", {cache: "no-store"});
+    if (!response.ok) throw new Error("Connection check failed");
+    const data = await response.json();
+
+    if (wifiText) {
+      wifiText.textContent = data.ssid
+        ? data.ssid
+        : "Connected (network name unavailable)";
+    }
+    setNetworkIndicator(
+      "net-wifi", "net-network", true,
+      data.ssid || "Connected (name unavailable)"
+    );
+    setNetworkIndicator(
+      "net-internet", "net-internet-text",
+      Boolean(data.internet),
+      data.internet ? "Connected" : "No internet access"
+    );
+  } catch (_) {
+    setNetworkIndicator(
+      "net-internet", "net-internet-text", false,
+      "Connection check failed"
+    );
+  }
+}
+
+function updateRadioConnection(message, online) {
+  radioConnectionState = message;
+  setNetworkIndicator("net-radio", "net-radio-text", online, message);
+}
+
+dashboardAudio.addEventListener("playing", () =>
+  updateRadioConnection("Receiving audio", true)
+);
+dashboardAudio.addEventListener("waiting", () =>
+  updateRadioConnection("Buffering", false)
+);
+dashboardAudio.addEventListener("stalled", () =>
+  updateRadioConnection("Stream stalled", false)
+);
+dashboardAudio.addEventListener("error", () =>
+  updateRadioConnection("Stream unavailable", false)
+);
+dashboardAudio.addEventListener("pause", () =>
+  updateRadioConnection("Paused", false)
+);
+dashboardAudio.addEventListener("ended", () =>
+  updateRadioConnection("Stream ended", false)
+);
+dashboardAudio.addEventListener("loadstart", () =>
+  updateRadioConnection("Connecting…", false)
+);
+
+window.addEventListener("online", refreshNetworkStatus);
+window.addEventListener("offline", () => {
+  setNetworkIndicator("net-wifi", "net-network", false, "Offline");
+  setNetworkIndicator("net-internet", "net-internet-text", false, "Offline");
+});
+
+refreshNetworkStatus();
+setInterval(refreshNetworkStatus, 15000);
 
 function openStandalonePlayer() {
   const stationId = activeAudioStation || "live993";

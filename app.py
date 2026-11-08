@@ -1360,6 +1360,60 @@ def delete_document(doc_id):
     return jsonify({"ok": True})
 
 
+
+def get_wifi_network_name():
+    """Best-effort SSID detection; ChromeOS containers may hide host Wi-Fi."""
+    commands = [
+        ["nmcli", "-t", "-f", "ACTIVE,SSID", "dev", "wifi"],
+        ["iwgetid", "-r"],
+        ["networksetup", "-getairportnetwork", "en0"],
+    ]
+    for command in commands:
+        try:
+            result = subprocess.run(
+                command, capture_output=True, text=True, timeout=2
+            )
+            if result.returncode != 0:
+                continue
+            output = result.stdout.strip()
+            if command[0] == "nmcli":
+                for line in output.splitlines():
+                    if line.startswith("yes:"):
+                        return line[4:].strip() or None
+            elif command[0] == "iwgetid":
+                if output:
+                    return output
+            elif "Current Wi-Fi Network:" in output:
+                name = output.split("Current Wi-Fi Network:", 1)[1].strip()
+                if name and name.lower() != "you are not associated":
+                    return name
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+    return None
+
+
+@app.get("/api/network-status")
+def network_status():
+    internet = False
+    try:
+        response = requests.get(
+            "https://www.gstatic.com/generate_204",
+            timeout=4,
+            allow_redirects=False,
+            stream=True,
+        )
+        internet = response.status_code == 204
+        response.close()
+    except requests.RequestException:
+        internet = False
+
+    return jsonify({
+        "internet": internet,
+        "ssid": get_wifi_network_name(),
+        "checked_at": datetime.now().astimezone().isoformat(),
+    })
+
+
 @app.get("/api/data")
 def data():
     cfg = load_config()

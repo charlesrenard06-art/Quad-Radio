@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Statistics · Quad Radio</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/theme.js" defer></script>
+</head>
+<body class="analytics-page">
+<header>
+  <div>
+    <div class="eyebrow">RADIO ANALYTICS</div>
+    <h1>GR<span>studios</span></h1>
+    <p>Understand what's playing across your stations.</p>
+  </div>
+  <nav class="site-nav">
+    <a href="/">Radio Dashboard</a>
+    <a href="/player" onclick="window.open(this.href, 'quadRadioPlayer', 'popup=yes,width=440,height=600,resizable=yes'); return false;">Radio Player ↗</a>
+    <a href="/notes">Documents</a>
+    <a href="/my-songs">My Songs</a>
+    <a class="active" href="/statistics">Statistics</a>
+    <a href="/discoveries">Discoveries</a>
+  </nav>
+  <label class="theme-control">Theme
+    <input class="theme-color-input" type="color" value="#ff405c"
+           data-theme-color aria-label="Choose website theme color">
+  </label>
+</header>
+
+<main class="analytics-layout">
+  <section class="analytics-summary">
+    <article class="analytics-stat">
+      <span>Recorded plays</span>
+      <strong>{{ "{:,}".format(total) }}</strong>
+    </article>
+    <article class="analytics-stat">
+      <span>Unique songs</span>
+      <strong>{{ "{:,}".format(unique_songs) }}</strong>
+    </article>
+    <article class="analytics-stat">
+      <span>Stations tracked</span>
+      <strong>{{ stations|length }}</strong>
+    </article>
+  </section>
+
+  <section class="panel analytics-panel">
+    <div class="eyebrow">SONG ROTATION</div>
+    <h2>Most played songs</h2>
+    {% if songs %}
+    <div class="analytics-table-wrap">
+      <table class="analytics-table">
+        <thead><tr><th>#</th><th>Song</th><th>Plays</th><th>Stations</th><th>First detected</th><th>Last detected</th></tr></thead>
+        <tbody>
+        {% for song in songs %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td><strong>{{ song.title }}</strong><small>{% if song.artist %}<a class="artist-link" href="{{ url_for('artist_profile', artist_name=song.artist) }}">{{ song.artist }}</a>{% else %}Unknown artist{% endif %}</small></td>
+            <td>{{ song.plays }}</td>
+            <td>{{ song.station_count }}</td>
+            <td>{{ song.first_played[:16].replace("T", " ") }}</td>
+            <td>{{ song.last_played[:16].replace("T", " ") }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<p class="note">No verified song records yet.</p>{% endif %}
+  </section>
+
+  <section class="analytics-columns">
+    <article class="panel analytics-panel">
+      <div class="eyebrow">ARTIST ROTATION</div>
+      <h2>Most played artists</h2>
+      {% for artist in artists %}
+      <div class="ranking-row">
+        <span class="ranking-number">{{ loop.index }}</span>
+        <span class="artist-ranking-photo" data-artist-name="{{ artist.artist }}">♫</span>
+        <div class="ranking-main"><strong><a class="artist-link" href="{{ url_for('artist_profile', artist_name=artist.artist) }}">{{ artist.artist }}</a></strong><small>{{ artist.songs }} songs · {{ artist.stations }} stations</small></div>
+        <strong>{{ artist.plays }}</strong>
+      </div>
+      {% else %}<p class="note">No artist data yet.</p>{% endfor %}
+    </article>
+
+    <article class="panel analytics-panel">
+      <div class="eyebrow">STATION ACTIVITY</div>
+      <h2>Station rankings</h2>
+      {% for station in stations %}
+      <div class="ranking-row">
+        <div class="ranking-main"><strong>{{ station.station_name }}</strong><small>{{ station.songs }} different songs</small></div>
+        <strong>{{ station.plays }}</strong>
+      </div>
+      {% else %}<p class="note">No station data yet.</p>{% endfor %}
+    </article>
+  </section>
+  <p class="analytics-footnote">Statistics use verified records currently saved in your radio history. Counts represent detected records, not independently verified listener plays.</p>
+</main>
+<footer>QUAD RADIO · STATISTICS</footer>
+
+<script>
+document.querySelectorAll(".artist-ranking-photo").forEach(async photo => {
+  try {
+    const response = await fetch(
+      "/api/artist-photo?artist=" + encodeURIComponent(photo.dataset.artistName)
+    );
+    const data = await response.json();
+
+    if (data.photo) {
+      const img = document.createElement("img");
+      img.src = data.photo;
+      img.alt = "";
+      img.loading = "lazy";
+      photo.replaceChildren(img);
+    }
+  } catch (_) {}
+});
+</script>
+  <script src="/static/particles.js" defer></script>
+</body>
+</html>

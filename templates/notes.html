@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GRstudios — Documents</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --notes-bg: #090507;
+  --notes-panel: #190b10;
+  --notes-border: color-mix(in srgb, var(--accent) 35%, #241b20);
+  --notes-text: #fff1f3;
+  --notes-muted: #b99ba2;
+}
+body.notes-light {
+  --notes-bg: #f1f2f5;
+  --notes-panel: #ffffff;
+  --notes-border: #d9dce3;
+  --notes-text: #20232a;
+  --notes-muted: #697080;
+  background: var(--notes-bg);
+  color: var(--notes-text);
+}
+.notes-workspace {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 20px;
+  max-width: 1450px;
+  margin: 24px auto;
+  padding: 0 22px 30px;
+  min-height: calc(100vh - 210px);
+}
+.notes-sidebar {
+  background: var(--notes-panel);
+  border: 1px solid var(--notes-border);
+  border-radius: 13px;
+  padding: 17px;
+  align-self: start;
+  min-height: 300px;
+}
+.notes-sidebar h2 { margin: 4px 0 15px; font-size: 19px; }
+.notes-toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+.notes-button {
+  border: 1px solid var(--notes-border);
+  background: var(--notes-panel);
+  color: var(--notes-text);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.notes-button.primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.notes-button:hover { border-color: var(--accent); }
+.document-list { display:flex; flex-direction:column; gap:6px; }
+.document-item {
+  width:100%;
+  text-align:left;
+  border:1px solid transparent;
+  background:transparent;
+  color:var(--notes-text);
+  border-radius:8px;
+  padding:10px;
+  cursor:pointer;
+  overflow-wrap:anywhere;
+}
+.document-item:hover { background:rgba(150,100,110,.12); }
+.document-item.active {
+  background:color-mix(in srgb, var(--accent) 13%, transparent);
+  border-color:var(--accent);
+}
+.document-item small {
+  display:block;
+  color:var(--notes-muted);
+  font-size:11px;
+  margin-top:3px;
+}
+.notes-editor-panel {
+  min-width:0;
+  background:var(--notes-panel);
+  border:1px solid var(--notes-border);
+  border-radius:13px;
+  padding:20px;
+}
+.editor-toolbar {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-bottom:16px;
+}
+.editor-toolbar .left, .editor-toolbar .right {
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+#document-title {
+  display:block;
+  width:100%;
+  max-width:900px;
+  margin:0 auto 14px;
+  border:0;
+  border-bottom:1px solid #e2e2e2;
+  border-radius:0;
+  padding:12px 8px;
+  background:#fff;
+  color:#202124;
+  font-size:28px;
+  font-weight:700;
+  font-family:var(--notes-editor-font, Arial), sans-serif;
+  outline:none;
+}
+#document-title:focus { border-bottom:2px solid var(--accent); }
+#font-picker {
+  border: 1px solid var(--notes-border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: var(--notes-panel);
+  color: var(--notes-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+#document-content {
+  display:block;
+  width:100%;
+  max-width:900px;
+  min-height:65vh;
+  height:calc(100vh - 330px);
+  margin:0 auto;
+  overflow:auto;
+  padding:34px 42px;
+  border:1px solid #dedede;
+  border-radius:3px;
+  background:#fff;
+  color:#202124;
+  box-shadow:0 2px 12px #00000012;
+  font:16px/1.8 var(--notes-editor-font, Arial), sans-serif;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  outline:none;
+}
+#document-content:focus { border-color:#b9b9b9; }
+#document-content:empty::before {
+  content:attr(data-placeholder);
+  color:#999;
+  pointer-events:none;
+}
+#text-size-picker {
+  border:1px solid var(--notes-border);
+  border-radius:8px;
+  padding:9px 10px;
+  background:var(--notes-panel);
+  color:var(--notes-text);
+  font:inherit;
+  font-size:13px;
+  cursor:pointer;
+}
+.format-button {
+  min-width:38px;
+  font-size:15px;
+}
+#save-status {
+  color:var(--notes-muted);
+  font-size:12px;
+  margin:12px 0 0;
+}
+.empty-state {
+  color:var(--notes-muted);
+  padding:20px 8px;
+  font-size:13px;
+}
+body.notes-light header { background:transparent; }
+body.notes-light .site-nav a {
+  background:white;
+  color:#20232a;
+  border-color:#d9dce3;
+}
+@media(max-width:760px) {
+  .notes-workspace { grid-template-columns:1fr; padding:0 12px 20px; }
+  .notes-sidebar { min-height:0; }
+  .document-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #document-content { height:65vh; padding:22px; }
+  #document-title { font-size:23px; }
+  .notes-editor-panel { padding:12px; }
+  #document-content { padding:22px; }
+}
+@media print {
+  @page { margin: 18mm; }
+  body, body.notes-light {
+    background:#fff !important;
+    color:#000 !important;
+    padding:0 !important;
+  }
+  body > header,
+  .notes-sidebar,
+  .editor-toolbar,
+  #save-status,
+  footer {
+    display:none !important;
+  }
+  .notes-workspace {
+    display:block !important;
+    margin:0 !important;
+    padding:0 !important;
+    max-width:none !important;
+    min-height:0 !important;
+  }
+  .notes-editor-panel {
+    display:block !important;
+    padding:0 !important;
+    margin:0 !important;
+    border:0 !important;
+    background:#fff !important;
+  }
+  #document-title {
+    max-width:none !important;
+    margin:0 0 18px !important;
+    padding:0 0 10px !important;
+    color:#000 !important;
+    font-size:25px !important;
+  }
+  #document-content {
+    display:block !important;
+    max-width:none !important;
+    min-height:0 !important;
+    height:auto !important;
+    overflow:visible !important;
+    padding:0 !important;
+    border:0 !important;
+    box-shadow:none !important;
+    color:#000 !important;
+    background:#fff !important;
+    white-space:pre-wrap !important;
+    overflow:visible !important;
+  }
+}
+</style>
+<script src="/static/theme.js" defer></script>
+</head>
+<body class="notes-page">
+<header>
+  <div>
+    <div class="eyebrow">PERSONAL BROADCAST ARCHIVE</div>
+    <h1>GR<span>studios</span></h1>
+    <p>Your documents and studio notes.</p>
+  </div>
+  <nav class="site-nav">
+    <a href="/">Radio Dashboard</a>
+    <a href="/player" onclick="window.open(this.href, 'quadRadioPlayer', 'popup=yes,width=440,height=600,resizable=yes'); return false;">Radio Player ↗</a>
+    <a class="active" href="/notes">Documents</a>
+    <a href="/my-songs">My Songs</a>
+    <a href="/statistics">Statistics</a>
+    <a href="/discoveries">Discoveries</a>
+    <button class="notes-button" id="theme-toggle" type="button">Dark mode</button>
+    <label class="theme-control">Theme
+      <input class="theme-color-input" type="color" value="#ff405c"
+             data-theme-color aria-label="Choose website theme color">
+    </label>
+  </nav>
+</header>
+
+<main class="notes-workspace">
+  <aside class="notes-sidebar">
+    <div class="eyebrow">YOUR WORKSPACE</div>
+    <h2>My documents</h2>
+    <div class="notes-toolbar">
+      <button class="notes-button primary" id="new-document" type="button">+ New document</button>
+    </div>
+    <div class="document-list" id="document-list">
+      <div class="empty-state">Loading documents...</div>
+    </div>
+  </aside>
+
+  <section class="notes-editor-panel">
+    <div class="editor-toolbar">
+      <div class="left">
+        <span class="eyebrow">DOCUMENT EDITOR</span>
+        <label for="font-picker" style="font-size:12px;color:var(--notes-muted)">Font</label>
+        <select id="font-picker" aria-label="Document font">
+          <option value="Montserrat">Montserrat</option>
+          <option value="Arial">Arial</option>
+          <option value="Georgia">Georgia</option>
+          <option value="Courier New">Courier New</option>
+        </select>
+        <button class="notes-button" id="bold-button"
+                type="button" title="Bold selected text" aria-label="Bold">
+          <strong>B</strong>
+        </button>
+        <label for="text-size-picker" style="font-size:12px;color:var(--notes-muted)">Size</label>
+        <select id="text-size-picker" aria-label="Text size">
+          <option value="10">10</option>
+          <option value="12">12</option>
+          <option value="14">14</option>
+          <option value="16" selected>16</option>
+          <option value="18">18</option>
+          <option value="20">20</option>
+          <option value="24">24</option>
+          <option value="28">28</option>
+          <option value="32">32</option>
+        </select>
+      </div>
+      <div class="right">
+        <button class="notes-button" id="export-pdf" type="button">Export PDF</button>
+        <button class="notes-button" id="delete-document" type="button">Delete document</button>
+      </div>
+    </div>
+    <input id="document-title" type="text" maxlength="200"
+           placeholder="Untitled document" aria-label="Document title">
+    <div id="document-content" contenteditable="true" role="textbox"
+         aria-multiline="true" aria-label="Document content"
+         data-placeholder="Start writing..." spellcheck="true"></div>
+    <p id="save-status">Loading your documents...</p>
+  </section>
+</main>
+
+<footer>GRSTUDIOS · DOCUMENT WORKSPACE</footer>
+
+<script>
+const list = document.querySelector('#document-list');
+const titleInput = document.querySelector('#document-title');
+const editor = document.querySelector('#document-content');
+const statusLine = document.querySelector('#save-status');
+const themeButton = document.querySelector('#theme-toggle');
+const fontPicker = document.querySelector('#font-picker');
+const sizePicker = document.querySelector('#text-size-picker');
+const boldButton = document.querySelector('#bold-button');
+const exportButton = document.querySelector('#export-pdf');
+
+const RICH_MARKER = '<!--QUADRADIO_RICH_V1-->';
+
+function cleanRichHTML(html) {
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const allowed = new Set([
+    'P', 'DIV', 'BR', 'STRONG', 'B', 'EM', 'I', 'U',
+    'SPAN', 'UL', 'OL', 'LI', 'H1', 'H2', 'H3', 'BLOCKQUOTE'
+  ]);
+
+  function clean(parent) {
+    for (const node of [...parent.childNodes]) {
+      if (node.nodeType === Node.TEXT_NODE) continue;
+
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        node.remove();
+        continue;
+      }
+
+      if (!allowed.has(node.tagName)) {
+        node.replaceWith(document.createTextNode(node.textContent));
+        continue;
+      }
+
+      const size = node.style.fontSize;
+      [...node.attributes].forEach(attr => node.removeAttribute(attr.name));
+
+      if (/^(10|12|14|16|18|20|24|28|32)px$/.test(size)) {
+        node.style.fontSize = size;
+      }
+
+      clean(node);
+    }
+  }
+
+  clean(parsed.body);
+  return parsed.body.innerHTML;
+}
+
+function loadEditorContent(content) {
+  if (content && content.startsWith(RICH_MARKER)) {
+    editor.innerHTML = cleanRichHTML(content.slice(RICH_MARKER.length));
+  } else {
+    // Old documents remain plain text; HTML-like text is not interpreted.
+    editor.textContent = content || '';
+  }
+}
+
+function getEditorContent() {
+  const html = cleanRichHTML(editor.innerHTML);
+  return html ? RICH_MARKER + html : '';
+}
+
+let lastEditorRange = null;
+
+document.addEventListener('selectionchange', () => {
+  const selection = window.getSelection();
+  if (
+    selection &&
+    selection.rangeCount &&
+    editor.contains(selection.anchorNode) &&
+    editor.contains(selection.focusNode)
+  ) {
+    lastEditorRange = selection.getRangeAt(0).cloneRange();
+  }
+});
+
+function restoreEditorSelection() {
+  if (!lastEditorRange) return false;
+  if (!editor.contains(lastEditorRange.commonAncestorContainer)) return false;
+
+  editor.focus();
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(lastEditorRange);
+  return true;
+}
+
+function applyFont(font) {
+  const allowed = ['Montserrat', 'Arial', 'Georgia', 'Courier New'];
+  const selected = allowed.includes(font) ? font : 'Montserrat';
+  document.documentElement.style.setProperty(
+    '--notes-editor-font',
+    '"' + selected + '"'
+  );
+  fontPicker.value = selected;
+  localStorage.setItem('gr-notes-font', selected);
+}
+
+fontPicker.addEventListener('change', () => {
+  applyFont(fontPicker.value);
+});
+let documents = [];
+let activeId = null;
+let savedTitle = '';
+let savedContent = '';
+let saveTimer = null;
+let saving = false;
+
+
+applyFont(localStorage.getItem('gr-notes-font') || 'Montserrat');
+
+function renderList() {
+  list.replaceChildren();
+  if (!documents.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.textContent = 'No documents yet. Create one to get started.';
+    list.append(empty);
+    return;
+  }
+
+  for (const doc of documents) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'document-item' + (doc.id === activeId ? ' active' : '');
+
+    const name = document.createElement('span');
+    name.textContent = doc.title || 'Untitled document';
+    const date = document.createElement('small');
+    date.textContent = 'Edited ' + new Date(doc.updated_at).toLocaleDateString();
+
+    button.append(name, date);
+    button.addEventListener('click', () => openDocument(doc.id));
+    list.append(button);
+  }
+}
+
+async function fetchDocuments() {
+  const response = await fetch('/api/documents', {cache:'no-store'});
+  if (!response.ok) throw new Error('Could not load documents');
+  const data = await response.json();
+  documents = data.documents || [];
+  renderList();
+}
+
+async function openDocument(id) {
+  if (id === activeId) return;
+  await saveDocument();
+
+  const doc = documents.find(item => item.id === id);
+  if (!doc) return;
+
+  activeId = doc.id;
+  titleInput.value = doc.title || '';
+  loadEditorContent(doc.content || '');
+  savedTitle = titleInput.value;
+  savedContent = getEditorContent();
+  statusLine.textContent = 'Saved · Changes save automatically';
+  renderList();
+}
+
+async function createDocument() {
+  await saveDocument();
+  statusLine.textContent = 'Creating document...';
+
+  const response = await fetch('/api/documents', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({title:'Untitled document', content:''})
+  });
+  const data = await response.json();
+  if (!response.ok || !data.ok) throw new Error(data.message || 'Could not create document');
+
+  await fetchDocuments();
+  activeId = data.id;
+  titleInput.value = data.title;
+  editor.innerHTML = '';
+  editor.style.fontSize = '';
+  savedTitle = data.title;
+  savedContent = '';
+  statusLine.textContent = 'New document · Ready to write';
+  renderList();
+  titleInput.focus();
+}
+
+async function saveDocument() {
+  clearTimeout(saveTimer);
+  if (!activeId || saving) return;
+
+  const title = titleInput.value.trim() || 'Untitled document';
+  const content = getEditorContent();
+  if (title === savedTitle && content === savedContent) return;
+
+  saving = true;
+  statusLine.textContent = 'Saving...';
+
+  try {
+    const response = await fetch('/api/documents/' + activeId, {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({title, content})
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.message || 'Save failed');
+
+    savedTitle = title;
+    savedContent = content;
+    const doc = documents.find(item => item.id === activeId);
+    if (doc) {
+      doc.title = title;
+      doc.content = content;
+      doc.updated_at = data.updated_at;
+    }
+    statusLine.textContent = 'Saved';
+    renderList();
+  } catch (error) {
+    statusLine.textContent = 'Save failed — check your connection.';
+  } finally {
+    saving = false;
+  }
+}
+
+function scheduleSave() {
+  statusLine.textContent = 'Changes pending...';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveDocument, 650);
+}
+
+titleInput.addEventListener('input', scheduleSave);
+editor.addEventListener('input', scheduleSave);
+titleInput.addEventListener('blur', saveDocument);
+editor.addEventListener('blur', saveDocument);
+
+boldButton.addEventListener('mousedown', event => event.preventDefault());
+boldButton.addEventListener('click', () => {
+  editor.focus();
+  document.execCommand('bold', false, null);
+  scheduleSave();
+});
+
+sizePicker.addEventListener('mousedown', () => {
+  const selection = window.getSelection();
+  if (
+    selection &&
+    selection.rangeCount &&
+    editor.contains(selection.anchorNode) &&
+    editor.contains(selection.focusNode)
+  ) {
+    lastEditorRange = selection.getRangeAt(0).cloneRange();
+  }
+});
+
+sizePicker.addEventListener('change', () => {
+  const size = Number(sizePicker.value);
+  if (![10, 12, 14, 16, 18, 20, 24, 28, 32].includes(size)) return;
+
+  const hasSelection = restoreEditorSelection() &&
+    !window.getSelection().isCollapsed;
+
+  function clearOldSizes(root) {
+    root.querySelectorAll('[style]').forEach(element => {
+      element.style.removeProperty('font-size');
+      if (!element.getAttribute('style')?.trim()) {
+        element.removeAttribute('style');
+      }
+    });
+  }
+
+  if (hasSelection) {
+    const selection = window.getSelection();
+    const range = selection.getRangeAt(0);
+
+    // Extract only the selected content, retaining its existing formatting.
+    const fragment = range.extractContents();
+    clearOldSizes(fragment);
+
+    const span = document.createElement('span');
+    span.style.fontSize = size + 'px';
+    span.append(fragment);
+    range.insertNode(span);
+
+    // Keep the newly formatted text selected.
+    range.selectNodeContents(span);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  } else {
+    // No text selected: resize the entire document.
+    clearOldSizes(editor);
+    const span = document.createElement('span');
+    span.style.fontSize = size + 'px';
+    while (editor.firstChild) span.append(editor.firstChild);
+    editor.append(span);
+  }
+
+  editor.focus();
+  scheduleSave();
+});
+
+exportButton.addEventListener('click', async () => {
+  await saveDocument();
+  document.title = (titleInput.value.trim() || 'Untitled document') + ' — PDF';
+  window.print();
+  document.title = 'GRstudios — Documents';
+});
+
+document.querySelector('#new-document').addEventListener('click', async () => {
+  try { await createDocument(); }
+  catch (error) { statusLine.textContent = error.message; }
+});
+
+document.querySelector('#delete-document').addEventListener('click', async () => {
+  if (!activeId) return;
+  if (!confirm('Delete this document permanently?')) return;
+
+  clearTimeout(saveTimer);
+  const id = activeId;
+  const response = await fetch('/api/documents/' + id, {method:'DELETE'});
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    statusLine.textContent = data.message || 'Could not delete document.';
+    return;
+  }
+
+  activeId = null;
+  await fetchDocuments();
+  if (documents.length) {
+    await openDocument(documents[0].id);
+  } else {
+    await createDocument();
+  }
+});
+
+async function start() {
+  try {
+    await fetchDocuments();
+    if (!documents.length) await createDocument();
+    else await openDocument(documents[0].id);
+  } catch (error) {
+    statusLine.textContent = 'Could not load documents. Check the server.';
+  }
+}
+start();
+</script>
+  <script src="/static/particles.js" defer></script>
+</body>
+</html>

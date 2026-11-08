@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ station.name }} · GR Studios</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/theme.js" defer></script>
+</head>
+<body>
+<header>
+  <div>
+    <div class="eyebrow">GR STUDIOS · STATION PROFILE</div>
+    <h1>{{ station.name }}</h1>
+    <p>{{ station.frequency }} · {{ station.market }}</p>
+  </div>
+  <nav class="site-nav">
+    <a href="/">Radio Dashboard</a>
+    <a href="/player" target="quadRadioPlayer"
+       onclick="window.open(this.href, 'quadRadioPlayer', 'popup=yes,width=440,height=600,resizable=yes'); return false;">Radio Player ↗</a>
+    <a href="/notes">Documents</a>
+    <a href="/my-songs">My Songs</a>
+    <a href="/statistics">Statistics</a>
+    <a href="/discoveries">Discoveries</a>
+  </nav>
+  <label class="theme-control">Theme
+    <input class="theme-color-input" type="color" value="#ff405c"
+           data-theme-color aria-label="Choose website theme color">
+  </label>
+</header>
+
+<main class="station-detail">
+  <section class="panel">
+    <div class="station-detail-hero">
+      <div>
+        <div class="eyebrow">DEDICATED STATION OVERVIEW</div>
+        <h2>{{ station.name }}</h2>
+        <p>{{ station.frequency }} · {{ station.market }}</p>
+      </div>
+      <div class="station-detail-actions">
+        <a class="button" href="/">← Back to Dashboard</a>
+        <a class="button" href="{{ station.url }}" target="_blank" rel="noreferrer">Station playlist source ↗</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="station-stat-grid">
+    <div class="station-stat"><span>Verified detections</span><strong>{{ "{:,}".format(stats.total_plays or 0) }}</strong></div>
+    <div class="station-stat"><span>Unique songs</span><strong>{{ "{:,}".format(stats.unique_songs or 0) }}</strong></div>
+    <div class="station-stat"><span>Unique artists</span><strong>{{ "{:,}".format(stats.unique_artists or 0) }}</strong></div>
+    <div class="station-stat"><span>Top song detections</span><strong>{{ top_songs[0].detections if top_songs else 0 }}</strong></div>
+  </section>
+
+  <section class="station-detail-columns">
+    <div class="station-detail-panel">
+      <div class="eyebrow">MOST PLAYED</div>
+      <h3>Top songs on this station</h3>
+      <div class="station-data-list">
+        {% for song in top_songs %}
+        <div class="station-data-row">
+          <div><strong>{{ song.title }}</strong><br><small>{{ song.artist or "Unknown artist" }}</small></div>
+          <strong>{{ song.detections }}</strong>
+        </div>
+        {% else %}
+        <p>No verified song detections yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="station-detail-panel">
+      <div class="eyebrow">ARTIST ROTATION</div>
+      <h3>Most detected artists</h3>
+      <div class="station-data-list">
+        {% for artist in top_artists %}
+        <div class="station-data-row">
+          <div><strong>{{ artist.artist }}</strong><br><small>{{ artist.songs }} unique songs</small></div>
+          <strong>{{ artist.detections }}</strong>
+        </div>
+        {% else %}
+        <p>No verified artist detections yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="eyebrow">ARCHIVE COVERAGE</div>
+    <h3>Collection timeline</h3>
+    <p>First detected: <strong>{{ stats.first_seen or "No records yet" }}</strong></p>
+    <p>Most recent detection: <strong>{{ stats.last_seen or "No records yet" }}</strong></p>
+  </section>
+
+  <section class="panel">
+    <div class="eyebrow">STATION HISTORY</div>
+    <h2>Recently detected songs</h2>
+    <div class="station-data-list">
+      {% for song in recent %}
+      <div class="station-recent-row">
+        <div class="station-recent-placeholder" id="placeholder-{{ loop.index }}">♫</div>
+        <img id="station-art-{{ loop.index }}" alt="" hidden>
+        <div>
+          <strong>{{ song.title }}</strong>
+          <span>{{ song.artist or "Unknown artist" }}</span>
+        </div>
+        <small>{{ song.played_at }}</small>
+      </div>
+      {% else %}
+      <p>No verified listening history is saved for this station yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+</main>
+
+<script>
+const stationSongs = {{ recent|tojson }};
+stationSongs.forEach(async (song, index) => {
+  if (!song.title) return;
+  const params = new URLSearchParams({
+    title: song.title,
+    artist: song.artist || ""
+  });
+  try {
+    const response = await fetch("/api/artwork?" + params);
+    const data = await response.json();
+    if (!data.artwork) return;
+    const image = document.querySelector("#station-art-" + (index + 1));
+    const placeholder = document.querySelector("#placeholder-" + (index + 1));
+    image.onload = () => {
+      image.hidden = false;
+      placeholder.hidden = true;
+    };
+    image.src = data.artwork;
+  } catch (error) {
+    console.warn("Station artwork lookup failed:", error);
+  }
+});
+</script>
+  <script src="/static/particles.js" defer></script>
+</body>
+</html>

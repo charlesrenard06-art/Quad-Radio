@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ artist.artist }} · Quad Radio</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/theme.js" defer></script>
+</head>
+<body class="analytics-page">
+<header>
+  <div>
+    <div class="eyebrow">ARTIST ARCHIVE</div>
+    <h1>GR<span>studios</span></h1>
+    <p>Your radio history, artist by artist.</p>
+  </div>
+  <nav class="site-nav">
+    <a href="/">Radio Dashboard</a>
+    <a href="/player" onclick="window.open(this.href, 'quadRadioPlayer', 'popup=yes,width=440,height=600,resizable=yes'); return false;">Radio Player ↗</a>
+    <a href="/notes">Documents</a>
+    <a href="/my-songs">My Songs</a>
+    <a href="/statistics">Statistics</a>
+    <a href="/discoveries">Discoveries</a>
+  </nav>
+  <label class="theme-control">Theme
+    <input class="theme-color-input" type="color" value="#ff405c"
+           data-theme-color aria-label="Choose website theme color">
+  </label>
+</header>
+
+<main class="analytics-layout artist-layout">
+  <a class="artist-back" href="/statistics">← Back to Statistics</a>
+
+  <section class="panel artist-hero">
+    <div class="artist-portrait" id="artist-portrait">
+      <span>♫</span>
+    </div>
+    <div class="artist-heading">
+      <div class="eyebrow">ARTIST PROFILE</div>
+      <h2>{{ artist.artist }}</h2>
+      <p class="note">Based on songs detected by your Quad Radio tracker.</p>
+    </div>
+  </section>
+
+  <section class="analytics-summary">
+    <article class="analytics-stat">
+      <span>Total detections</span>
+      <strong>{{ artist.total_detections }}</strong>
+    </article>
+    <article class="analytics-stat">
+      <span>Different songs</span>
+      <strong>{{ artist.unique_songs }}</strong>
+    </article>
+    <article class="analytics-stat">
+      <span>Stations played</span>
+      <strong>{{ artist.station_count }}</strong>
+    </article>
+  </section>
+
+  <section class="panel analytics-panel">
+    <div class="eyebrow">SONG COLLECTION</div>
+    <h2>Songs by {{ artist.artist }}</h2>
+    <p class="note">{{ songs|length }} songs found in your saved radio history.</p>
+
+    <div class="artist-song-list">
+      {% for song in songs %}
+      <article class="artist-song" data-title="{{ song.title }}" data-artist="{{ artist.artist }}">
+        <div class="artist-song-art"><span>♫</span></div>
+        <div class="artist-song-info">
+          <strong>{{ song.title }}</strong>
+          <small>{{ song.detections }} detection{% if song.detections != 1 %}s{% endif %} · {{ song.station_count }} station{% if song.station_count != 1 %}s{% endif %}</small>
+          <small>First: {{ song.first_seen[:16].replace("T", " ") }}</small>
+          <small>Last: {{ song.last_seen[:16].replace("T", " ") }}</small>
+          {% if song.stations %}<small>{{ song.stations }}</small>{% endif %}
+        </div>
+      </article>
+      {% else %}
+      <p class="note">No songs found for this artist.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel analytics-panel">
+    <div class="eyebrow">STATION ROTATION</div>
+    <h2>Stations playing this artist</h2>
+    {% for station in stations %}
+    <div class="ranking-row">
+      <div class="ranking-main">
+        <strong>{{ station.station_name }}</strong>
+        <small>{{ station.songs }} different songs</small>
+      </div>
+      <strong>{{ station.detections }}</strong>
+    </div>
+    {% else %}
+    <p class="note">No station information available.</p>
+    {% endfor %}
+  </section>
+</main>
+
+<footer>QUAD RADIO · ARTIST ARCHIVE</footer>
+
+<script>
+(async () => {
+  const portrait = document.getElementById("artist-portrait");
+  const heading = document.querySelector(".artist-heading h2");
+  if (!portrait || !heading) return;
+
+  try {
+    const response = await fetch(
+      "/api/artist-photo?artist=" + encodeURIComponent(heading.textContent.trim())
+    );
+    const data = await response.json();
+
+    if (data.photo) {
+      portrait.replaceChildren();
+      const img = document.createElement("img");
+      img.src = data.photo;
+      img.alt = heading.textContent.trim();
+      img.loading = "eager";
+      portrait.appendChild(img);
+    }
+  } catch (_) {}
+})();
+
+document.querySelectorAll(".artist-song").forEach(async card => {
+  try {
+    const response = await fetch(
+      "/api/artwork?title=" + encodeURIComponent(card.dataset.title) +
+      "&artist=" + encodeURIComponent(card.dataset.artist)
+    );
+    const data = await response.json();
+
+    if (data.artwork) {
+      const art = card.querySelector(".artist-song-art");
+      art.replaceChildren();
+      const img = document.createElement("img");
+      img.src = data.artwork;
+      img.alt = "";
+      img.loading = "lazy";
+      art.appendChild(img);
+    }
+  } catch (_) {}
+});
+</script>
+  <script src="/static/particles.js" defer></script>
+</body>
+</html>

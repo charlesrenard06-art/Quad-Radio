@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quad Radio Archive</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+.history-tabs {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin:18px 0;
+}
+.history-tab {
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.04);
+  color:inherit;
+  padding:12px 18px;
+  border-radius:9px;
+  cursor:pointer;
+  font:inherit;
+  transition:background .2s,border-color .2s;
+}
+.history-tab:hover { background:rgba(255,255,255,.10); }
+.history-tab.active {
+  background:rgba(70,160,255,.18);
+  border-color:#55aaff;
+}
+.history-tab .count {
+  opacity:.7;
+  margin-left:7px;
+  font-size:.85em;
+}
+.history-heading {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+#history-search { width:100%; box-sizing:border-box; margin:12px 0; }
+
+
+
+</style>
+<script src="/static/theme.js" defer></script>
+</head>
+
+<body>
+<header>
+  <div>
+    <div class="eyebrow">PERSONAL BROADCAST ARCHIVE</div>
+    <h1>GR<span>studios</span></h1>
+    <p>All stations. One searchable history.</p>
+  </div>
+  <nav class="site-nav">
+    <a class="active" href="/">Radio Dashboard</a>
+    <a href="/player">Radio Player ↗</a>
+    <a href="/notes">Documents</a>
+    <a href="/my-songs">My Songs</a>
+    <a href="/statistics">Statistics</a>
+    <a href="/discoveries">Discoveries</a>
+  </nav>
+  <label class="theme-control">Theme
+    <input class="theme-color-input" type="color" value="#ff405c"
+           data-theme-color aria-label="Choose website theme color">
+  </label>
+  <button id="refresh">↻ Refresh stations</button>
+</header>
+
+<main>
+
+
+
+  <section id="stations" class="grid"></section>
+
+  <section class="panel">
+    <div class="eyebrow">LOCAL INTELLIGENCE · OLLAMA</div>
+    <h2>Ask the archive</h2>
+    <form id="ask">
+      <input id="question" placeholder="What played on Live 99.3 yesterday?">
+      <button>Ask</button>
+    </form>
+    <div id="answer" class="answer">
+      Ask about songs collected by this archive. Ollama answers only from saved records.
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="eyebrow">PERMANENT LOCAL DATABASE</div>
+    <div class="history-heading">
+      <h2>Song history</h2>
+      <span id="history-count"></span>
+    </div>
+
+    <nav id="history-tabs" class="history-tabs" aria-label="Station song history" role="tablist"></nav>
+
+    <input id="history-search" class="filter"
+      placeholder="Search songs and artists in this station">
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Station</th>
+            <th>Song / record</th>
+            <th>Played</th>
+            <th>Time quality</th>
+            <th>Save</th>
+          </tr>
+        </thead>
+        <tbody id="history"></tbody>
+      </table>
+    </div>
+
+    <p class="note">
+      Only records returned by a source are saved. Unverified timestamps are labeled.
+      The archive cannot reconstruct plays from before collection began unless a source publishes that history.
+    </p>
+    <a href="/api/export">Export all saved records (JSON) ↗</a>
+<a href="/api/export.csv">Export CSV</a>
+  </section>
+</main>
+
+<footer>QUAD RADIO · LOCAL MAC ARCHIVE</footer>
+
+
+<dialog id="add-song-dialog" class="playlist-dialog">
+  <form method="dialog" class="playlist-dialog-inner">
+    <button class="dialog-close" value="cancel" aria-label="Close">×</button>
+    <div class="eyebrow">SAVE YOUR MUSIC</div>
+    <h2>Add to My Songs</h2>
+    <p id="add-song-label" class="muted"></p>
+    <label for="playlist-choice">Choose a playlist</label>
+    <select id="playlist-choice"></select>
+    <div class="dialog-create">
+      <label for="quick-playlist-name">Or create a new playlist</label>
+      <input id="quick-playlist-name" maxlength="100" placeholder="Name your playlist">
+      <button id="quick-create-playlist" type="button">Create playlist</button>
+    </div>
+    <p id="playlist-dialog-message" role="status"></p>
+    <button id="confirm-add-song" type="button" class="add-song-button">Add song</button>
+  </form>
+</dialog>
+
+<script>
+let plays = [];
+let stations = [];
+let activeStation = 'all';
+
+let activeAudioStation = null;
+const dashboardAudio = new Audio();
+dashboardAudio.preload = "none";
+
+const e = s => String(s ?? "").replace(/[&<>"']/g, c => ({
+  "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+}[c]));
+
+const date = s => {
+  try { return new Date(s).toLocaleString(); }
+  catch { return s; }
+};
+
+const artworkCache = new Map();
+
+async function loadArtwork(stationId, play) {
+  if (!play || !play.title) return;
+
+  const key = `${play.artist || ""}\\u0000${play.title}`;
+
+  if (!artworkCache.has(key)) {
+    const params = new URLSearchParams({
+      title: play.title,
+      artist: play.artist || ""
+    });
+
+    const lookup = fetch(`/api/artwork?${params}`)
+      .then(response => {
+        if (!response.ok) throw new Error(`Artwork API returned ${response.status}`);
+        return response.json();
+      })
+      .then(result => result.artwork || null)
+      .catch(error => {
+        console.warn("Artwork lookup failed:", error);
+        return null;
+      });
+
+    artworkCache.set(key, lookup);
+  }
+
+  const artwork = await artworkCache.get(key);
+  if (!artwork) return;
+
+  // Find the card again after the request; the dashboard may have refreshed.
+  const image = document.getElementById(`artwork-${stationId}`);
+  if (!image) return;
+
+  const placeholder = image.previousElementSibling;
+
+  image.onload = () => {
+    image.hidden = false;
+    if (placeholder) placeholder.style.display = "none";
+  };
+
+  image.onerror = () => {
+    console.warn("Album image could not load:", artwork);
+  };
+
+  image.src = artwork;
+
+  if (image.complete && image.naturalWidth > 0) {
+    image.hidden = false;
+    if (placeholder) placeholder.style.display = "none";
+  }
+}
+
+async function load() {
+  const response = await fetch('/api/data');
+  const d = await response.json();
+
+  plays = d.plays || [];
+  stations = d.stations || [];
+
+  if (!stations.some(s => s.id === activeStation)) {
+    activeStation = stations.length ? stations[0].id : null;
+  }
+
+  document.querySelector('#stations').innerHTML = stations.map(s => {
+    const p = s.plays[0];
+    const st = s.status || {};
+    const status = st.status || 'waiting';
+
+    return `<article class="station" data-station-id="${e(s.id)}">
+      <div class="top"><span>${e(s.market)}</span><i class="${e(status)}"></i></div>
+      <h2>${e(s.name)}</h2>
+      <b class="freq">${e(s.frequency)}</b>
+      <div class="label">LATEST SAVED PLAY</div>
+      <div class="track-row">
+        <div class="artwork-wrap">
+          <div class="artwork-placeholder">♫</div>
+          <img class="album-art" id="artwork-${e(s.id)}" alt="Album artwork"
+               hidden>
+        </div>
+        <div class="track-info">
+          <div class="song">${p ? e(p.title) : 'No plays saved yet'}</div>
+          <div class="artist">${p ? e(p.artist || 'Artist not separated by source') : e(s.note || 'Waiting for first collection')}</div>
+        </div>
+      </div>
+      ${p ? `<button class="add-song-button" type="button"
+        data-add-song data-title="${e(p.title)}" data-artist="${e(p.artist || '')}"
+        data-station="${e(s.id)}" data-station-name="${e(s.name)}"
+        data-played-at="${e(p.played_at || '')}">＋ Add to My Songs</button>` : ''}
+      <div class="radio-player">
+        <button class="play-button" type="button"
+                data-station="${e(s.id)}">▶ Play Live Radio</button>
+        <span class="player-status">Play directly on this dashboard</span>
+      </div>
+      <div class="bottom">
+        <span>${e(status.replace('_',' ').toUpperCase())}</span>
+        <span>${s.count} saved</span>
+      </div>
+      <p class="status">${e(st.message || 'Not checked yet')}</p>
+      ${s.url ? `<a href="${e(s.url)}" target="_blank" rel="noreferrer">Open playlist source ↗</a>` : ''}
+    </article>`;
+  }).join('');
+
+  stations.forEach(s => loadArtwork(s.id, s.plays && s.plays[0]));
+  syncRadioPlayers();
+
+  renderTabs();
+  renderHistory();
+}
+
+function renderTabs() {
+  const nav = document.querySelector('#history-tabs');
+  const allCount = plays.length;
+  const allActive = activeStation === 'all';
+
+  nav.innerHTML = `
+    <button class="history-tab ${allActive ? 'active' : ''}"
+      type="button" role="tab" aria-selected="${allActive}"
+      data-station="all">
+      All stations <span class="count">${allCount}</span>
+    </button>
+  ` + stations.map(s => {
+    const count = plays.filter(p => p.station_id === s.id).length;
+    const active = s.id === activeStation;
+    return `<button
+      class="history-tab ${active ? 'active' : ''}"
+      type="button"
+      role="tab"
+      aria-selected="${active}"
+      data-station="${e(s.id)}">
+      ${e(s.frequency || s.name)}
+      <span class="count">${count}</span>
+    </button>`;
+  }).join('');
+}
+
+async function loadHistoryArtwork() {
+  const images = [...document.querySelectorAll(".history-art")];
+
+  await Promise.all(images.map(async image => {
+    const title = image.dataset.title || "";
+    const artist = image.dataset.artist || "";
+    if (!title) return;
+
+    const key = `${artist}\u0000${title}`;
+
+    if (!artworkCache.has(key)) {
+      const params = new URLSearchParams({ title, artist });
+
+      const lookup = fetch(`/api/artwork?${params}`)
+        .then(response => {
+          if (!response.ok) throw new Error(`Artwork API returned ${response.status}`);
+          return response.json();
+        })
+        .then(result => result.artwork || null)
+        .catch(error => {
+          console.warn("History artwork lookup failed:", error);
+          return null;
+        });
+
+      artworkCache.set(key, lookup);
+    }
+
+    const artwork = await artworkCache.get(key);
+
+    if (artwork && image.isConnected) {
+      image.onload = () => {
+        image.hidden = false;
+        const placeholder = image.previousElementSibling;
+        if (placeholder) placeholder.hidden = true;
+      };
+      image.src = artwork;
+    }
+  }));
+}
+
+function renderHistory() {
+  const query = document.querySelector('#history-search').value.toLowerCase();
+
+  const filtered = plays.filter(p =>
+    (activeStation === 'all' || p.station_id === activeStation) &&
+    (p.title + ' ' + p.artist + ' ' + p.station_name).toLowerCase().includes(query)
+  );
+
+  document.querySelector('#history-count').textContent =
+    `${filtered.length} songs`;
+
+  document.querySelector('#history').innerHTML = filtered.map((p, i) => `
+    <tr>
+      <td>${e(p.station_name)}</td>
+      <td>
+        <div class="history-song-cell">
+          <div class="history-art-wrap">
+            <div class="history-art-placeholder">♫</div>
+            <img class="history-art" data-title="${e(p.title)}"
+                 data-artist="${e(p.artist || '')}" alt="" hidden>
+          </div>
+          <div class="history-song-text">
+            <b>${e(p.title)}</b>
+            <small>${e(p.artist)}</small>
+          </div>
+        </div>
+      </td>
+      <td>${e(date(p.played_at))}</td>
+      <td>${e(p.time_accuracy)}</td>
+      <td><button class="add-song-button compact" type="button"
+        data-add-song data-title="${e(p.title)}" data-artist="${e(p.artist || '')}"
+        data-station="${e(p.station_id)}" data-station-name="${e(p.station_name)}"
+        data-played-at="${e(p.played_at || '')}" aria-label="Add ${e(p.title)} to My Songs">＋</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="5">No matching records for this station.</td></tr>';
+
+  loadHistoryArtwork();
+}
+
+
+
+let pendingPlaylistSong = null;
+
+async function refreshPlaylistChoices() {
+  const response = await fetch("/api/playlists");
+  const data = await response.json();
+  const select = document.querySelector("#playlist-choice");
+  select.innerHTML = (data.playlists || []).map(p =>
+    `<option value="${p.id}">${e(p.name)}</option>`
+  ).join("");
+  return data.playlists || [];
+}
+
+document.addEventListener("click", async event => {
+  const button = event.target.closest("[data-add-song]");
+  if (!button) return;
+
+  pendingPlaylistSong = {
+    title: button.dataset.title || "",
+    artist: button.dataset.artist || "",
+    station_id: button.dataset.station || "",
+    station_name: button.dataset.stationName || "",
+    played_at: button.dataset.playedAt || ""
+  };
+
+  document.querySelector("#add-song-label").textContent =
+    `${pendingPlaylistSong.title} — ${pendingPlaylistSong.artist}`;
+  document.querySelector("#playlist-dialog-message").textContent = "";
+  document.querySelector("#quick-playlist-name").value = "";
+
+  try {
+    const playlists = await refreshPlaylistChoices();
+    document.querySelector("#confirm-add-song").disabled = playlists.length === 0;
+    document.querySelector("#confirm-add-song").textContent =
+      playlists.length ? "Add song" : "Create a playlist first";
+    document.querySelector("#add-song-dialog").showModal();
+  } catch (error) {
+    alert("Could not load playlists. Please try again.");
+  }
+});
+
+document.querySelector("#quick-create-playlist").addEventListener("click", async () => {
+  const input = document.querySelector("#quick-playlist-name");
+  const message = document.querySelector("#playlist-dialog-message");
+  const name = input.value.trim();
+  if (!name) {
+    message.textContent = "Enter a name for the playlist.";
+    return;
+  }
+  try {
+    const response = await fetch("/api/playlists", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({name})
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not create playlist.");
+    await refreshPlaylistChoices();
+    document.querySelector("#playlist-choice").value = result.id;
+    document.querySelector("#confirm-add-song").disabled = false;
+    document.querySelector("#confirm-add-song").textContent = "Add song";
+    input.value = "";
+    message.textContent = `Created "${result.name}".`;
+  } catch (error) {
+    message.textContent = error.message;
+  }
+});
+
+document.querySelector("#confirm-add-song").addEventListener("click", async () => {
+  const playlistId = document.querySelector("#playlist-choice").value;
+  const message = document.querySelector("#playlist-dialog-message");
+  if (!playlistId || !pendingPlaylistSong) {
+    message.textContent = "Create or choose a playlist first.";
+    return;
+  }
+  try {
+    const response = await fetch(`/api/playlists/${playlistId}/songs`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(pendingPlaylistSong)
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not save song.");
+    message.textContent = "Song added to your playlist.";
+    document.querySelector("#confirm-add-song").disabled = true;
+    setTimeout(() => document.querySelector("#add-song-dialog").close(), 650);
+  } catch (error) {
+    message.textContent = error.message;
+  }
+});
+
+
+
+function syncRadioPlayers() {
+  document.querySelectorAll(".play-button").forEach(button => {
+    const selected = button.dataset.station === activeAudioStation;
+    const playing = selected && !dashboardAudio.paused;
+    button.textContent = playing ? "❚❚ Pause Radio" : "▶ Play Live Radio";
+
+    const status = button.parentElement.querySelector(".player-status");
+    if (status) {
+      status.textContent = playing
+        ? "Playing directly on the dashboard"
+        : "Play directly on this dashboard";
+    }
+  });
+}
+
+async function toggleDashboardStation(stationId) {
+  if (activeAudioStation === stationId && !dashboardAudio.paused) {
+    dashboardAudio.pause();
+    activeAudioStation = null;
+    syncRadioPlayers();
+    return;
+  }
+
+  activeAudioStation = stationId;
+  dashboardAudio.pause();
+  dashboardAudio.src = "/stream/" + encodeURIComponent(stationId);
+  dashboardAudio.dataset.station = stationId;
+  syncRadioPlayers();
+
+  try {
+    await dashboardAudio.play();
+  } catch (error) {
+    console.error("Dashboard radio playback failed:", error);
+    activeAudioStation = null;
+    alert("Radio playback could not start. Please press Play again.");
+  }
+
+  syncRadioPlayers();
+}
+
+dashboardAudio.addEventListener("play", syncRadioPlayers);
+dashboardAudio.addEventListener("pause", syncRadioPlayers);
+dashboardAudio.addEventListener("ended", syncRadioPlayers);
+dashboardAudio.addEventListener("error", () => {
+  activeAudioStation = null;
+  syncRadioPlayers();
+});
+
+function openStandalonePlayer() {
+  const stationId = activeAudioStation || "live993";
+  const wasPlaying = !dashboardAudio.paused && Boolean(activeAudioStation);
+  const query = "?station=" + encodeURIComponent(stationId) +
+    (wasPlaying ? "&autoplay=1" : "");
+
+  const playerWindow = window.open(
+    "/player" + query,
+    "quadRadioPlayer",
+    "popup=yes,width=440,height=600,resizable=yes"
+  );
+
+  if (!playerWindow) {
+    alert("Your browser blocked the Radio Player window. Allow pop-ups for Quad Radio.");
+    return false;
+  }
+
+  playerWindow.focus();
+
+  if (wasPlaying) {
+    dashboardAudio.pause();
+    activeAudioStation = null;
+    syncRadioPlayers();
+  }
+
+  return true;
+}
+
+document.querySelector("#stations").addEventListener("click", event => {
+  const playButton = event.target.closest(".play-button");
+  if (playButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleDashboardStation(playButton.dataset.station);
+    return;
+  }
+
+  // Buttons and external links keep their own actions.
+  if (event.target.closest("button, a, input, select, label")) return;
+
+  const card = event.target.closest(".station");
+  if (!card) return;
+
+  const stationId = card.dataset.stationId;
+  if (!stationId) return;
+
+  // Hand playback to the independent player before leaving the dashboard.
+  if (!dashboardAudio.paused && activeAudioStation) {
+    openStandalonePlayer();
+  }
+
+  window.location.href = "/station/" + encodeURIComponent(stationId);
+});
+
+// Hand playback to the independent player when navigating to another page.
+document.querySelectorAll(".site-nav a").forEach(link => {
+  link.addEventListener("click", event => {
+    const href = link.getAttribute("href");
+
+    if (href === "/player") {
+      event.preventDefault();
+      openStandalonePlayer();
+      return;
+    }
+
+    if (href && href.startsWith("/") &&
+        !dashboardAudio.paused && activeAudioStation) {
+      openStandalonePlayer();
+    }
+  });
+});
+
+document.querySelector('#history-tabs').addEventListener('click', event => {
+  const button = event.target.closest('[data-station]');
+  if (!button) return;
+
+  activeStation = button.dataset.station;
+  renderTabs();
+  renderHistory();
+});
+
+document.querySelector('#history-search').addEventListener('input', renderHistory);
+
+document.querySelector('#refresh').onclick = async () => {
+  const button = document.querySelector('#refresh');
+
+  if (button.disabled) return;
+
+  button.disabled = true;
+  button.textContent = 'Starting refresh…';
+
+  try {
+    const response = await fetch('/api/refresh', {method:'POST'});
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.message || 'Refresh could not start.');
+    }
+
+    button.textContent = 'Refreshing stations…';
+
+    let finished = false;
+
+    for (let i = 0; i < 180; i++) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const statusResponse = await fetch('/api/refresh-status');
+      if (!statusResponse.ok) throw new Error('Could not check refresh status.');
+
+      const status = await statusResponse.json();
+
+      if (!status.running) {
+        if (status.error) throw new Error(status.error);
+        finished = true;
+        break;
+      }
+    }
+
+    if (!finished) {
+      throw new Error('Refresh is taking longer than expected. Check station status.');
+    }
+
+    await load();
+    button.textContent = '✓ Refresh complete';
+
+    setTimeout(() => {
+      button.textContent = '↻ Refresh stations';
+      button.disabled = false;
+    }, 2500);
+
+  } catch (error) {
+    button.textContent = 'Refresh failed';
+    alert(error.message);
+
+    await load();
+
+    button.textContent = '↻ Refresh stations';
+    button.disabled = false;
+  }
+};
+
+document.querySelector('#ask').onsubmit = async event => {
+  event.preventDefault();
+  const answer = document.querySelector('#answer');
+  answer.textContent = 'Asking Ollama…';
+
+  const response = await fetch('/api/ask', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      question:document.querySelector('#question').value
+    })
+  });
+
+  answer.textContent = (await response.json()).answer;
+};
+
+
+
+load();
+setInterval(load, 10000);
+</script>
+  <script src="/static/particles.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Recently Discovered · Quad Radio</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/theme.js" defer></script>
+</head>
+<body class="analytics-page">
+<header>
+  <div>
+    <div class="eyebrow">YOUR RADIO FINDS</div>
+    <h1>GR<span>studios</span></h1>
+    <p>Every song's first appearance in your saved radio history.</p>
+  </div>
+  <nav class="site-nav">
+    <a href="/">Radio Dashboard</a>
+    <a href="/player" onclick="window.open(this.href, 'quadRadioPlayer', 'popup=yes,width=440,height=600,resizable=yes'); return false;">Radio Player ↗</a>
+    <a href="/notes">Documents</a>
+    <a href="/my-songs">My Songs</a>
+    <a href="/statistics">Statistics</a>
+    <a class="active" href="/discoveries">Discoveries</a>
+  </nav>
+  <label class="theme-control">Theme
+    <input class="theme-color-input" type="color" value="#ff405c"
+           data-theme-color aria-label="Choose website theme color">
+  </label>
+</header>
+
+<main class="analytics-layout">
+  <section class="panel discoveries-heading">
+    <div>
+      <div class="eyebrow">FIRST DETECTIONS</div>
+      <h2>Recently discovered songs</h2>
+      <p class="note">Showing up to 200 songs, ordered by when they were first recorded.</p>
+    </div>
+    <strong class="discovery-total">{{ discoveries|length }} songs</strong>
+  </section>
+
+  <section id="discovery-list" class="discovery-grid">
+    {% for song in discoveries %}
+    <article class="discovery-card" data-title="{{ song.title }}" data-artist="{{ song.artist }}">
+      <div class="discovery-art"><span>♫</span></div>
+      <div class="discovery-info">
+        <strong>{{ song.title }}</strong>
+        <span>{% if song.artist %}<a class="artist-link" href="{{ url_for('artist_profile', artist_name=song.artist) }}">{{ song.artist }}</a>{% else %}Unknown artist{% endif %}</span>
+        <small>{{ song.station_name or "Radio station" }}</small>
+        <time datetime="{{ song.first_seen }}">{{ song.first_seen[:16].replace("T", " ") }}</time>
+      </div>
+      <div class="discovery-count">{{ song.total_detections }} detection{% if song.total_detections != 1 %}s{% endif %}</div>
+    </article>
+    {% else %}
+    <div class="panel"><p class="note">No verified song discoveries yet. Your first discoveries will appear here as the radio tracker collects songs.</p></div>
+    {% endfor %}
+  </section>
+</main>
+<footer>QUAD RADIO · RECENTLY DISCOVERED</footer>
+
+<script>
+document.querySelectorAll(".discovery-card").forEach(async card => {
+  const title = card.dataset.title;
+  const artist = card.dataset.artist;
+  try {
+    const response = await fetch(
+      "/api/artwork?title=" + encodeURIComponent(title) +
+      "&artist=" + encodeURIComponent(artist)
+    );
+    const data = await response.json();
+    if (data.artwork) {
+      const art = card.querySelector(".discovery-art");
+      art.innerHTML = "";
+      const img = document.createElement("img");
+      img.src = data.artwork;
+      img.alt = "";
+      img.loading = "lazy";
+      art.appendChild(img);
+    }
+  } catch (_) {}
+});
+</script>
+  <script src="/static/particles.js" defer></script>
+</body>
+</html>

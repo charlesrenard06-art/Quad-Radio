@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quad Radio Player</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --accent: #ff405c;
+      --bg: #111015;
+      --panel: #1d1a22;
+      --line: #38323e;
+      --muted: #aaa2b2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 25px;
+      background: var(--bg);
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .player {
+      max-width: 440px;
+      margin: 0 auto;
+      padding: 25px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--panel);
+      box-shadow: 0 15px 45px #0006;
+    }
+    .eyebrow {
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 2px;
+    }
+    h1 { margin: 8px 0 5px; font-size: 27px; }
+    .description { color: var(--muted); font-size: 13px; }
+    label {
+      display: block;
+      margin-top: 25px;
+      margin-bottom: 9px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    select {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: #121016;
+      color: white;
+      font-size: 15px;
+    }
+    button {
+      width: 100%;
+      margin-top: 22px;
+      padding: 15px;
+      border: 0;
+      border-radius: 12px;
+      background: var(--accent);
+      color: white;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .55; cursor: wait; }
+    input[type=range] { width: 100%; accent-color: var(--accent); }
+    #status {
+      min-height: 38px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .playing { color: #65d69a !important; }
+
+    .now-playing {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-top: 22px;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #121016;
+      min-width: 0;
+    }
+    .now-art-wrap {
+      position: relative;
+      width: 76px;
+      height: 76px;
+      flex: 0 0 76px;
+      overflow: hidden;
+      border-radius: 10px;
+      background: var(--accent);
+    }
+    .now-art-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .now-art-placeholder {
+      display: grid;
+      width: 100%;
+      height: 100%;
+      place-items: center;
+      color: white;
+      font-size: 30px;
+    }
+    /* Ensure hidden elements stay hidden despite component display styles. */
+    .now-art-placeholder[hidden],
+    #now-art[hidden] {
+      display: none !important;
+    }
+
+    .now-song-info {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+    .now-eyebrow {
+      color: var(--accent);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+    }
+    #now-title {
+      overflow-wrap: anywhere;
+      font-size: 14px;
+    }
+    #now-artist {
+      overflow-wrap: anywhere;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .footer {
+      margin-top: 25px;
+      color: var(--muted);
+      font-size: 11px;
+      text-align: center;
+    }
+  </style>
+  <script src="/static/theme.js" defer></script>
+</head>
+<body>
+  <main class="player">
+    <div class="eyebrow">GR STUDIOS</div>
+    <h1>Quad Radio</h1>
+    <p class="description">Your radio keeps playing while you browse the website.</p>
+
+
+    <section id="now-playing" class="now-playing">
+      <div class="now-art-wrap">
+        <div id="now-art-placeholder" class="now-art-placeholder">♫</div>
+        <img id="now-art" alt="Current album artwork" hidden>
+      </div>
+      <div class="now-song-info">
+        <div class="now-eyebrow">NOW PLAYING</div>
+        <strong id="now-title">Waiting for song information…</strong>
+        <span id="now-artist">Select a radio station</span>
+      </div>
+    </section>
+
+    <label for="station">RADIO STATION</label>
+    <select id="station">
+      {% for s in stations %}
+      <option value="{{ s.id }}">{{ s.name }} — {{ s.frequency }}</option>
+      {% endfor %}
+    </select>
+
+    <button id="play" type="button">▶ Play Live Radio</button>
+
+    <label for="volume">VOLUME</label>
+    <input id="volume" type="range" min="0" max="1" step="0.05" value="0.8">
+
+    <div id="status" role="status">Choose a station and press Play.</div>
+    <div class="footer">Keep this window open while browsing Quad Radio.</div>
+  </main>
+
+  <script>
+    const audio = new Audio();
+    audio.preload = "none";
+
+    const station = document.querySelector("#station");
+    const playButton = document.querySelector("#play");
+    const volume = document.querySelector("#volume");
+    const status = document.querySelector("#status");
+
+    const params = new URLSearchParams(location.search);
+    const requestedStation = params.get("station");
+    const validStations = [...station.options].map(option => option.value);
+
+    try {
+      const savedStation = localStorage.getItem("quad-radio-player-station");
+      const savedVolume = localStorage.getItem("quad-radio-player-volume");
+
+      if (validStations.includes(requestedStation)) {
+        station.value = requestedStation;
+      } else if (validStations.includes(savedStation)) {
+        station.value = savedStation;
+      }
+
+      if (savedVolume !== null) volume.value = savedVolume;
+    } catch (_) {}
+
+    audio.volume = Number(volume.value);
+
+    function updateStatus(message) {
+      status.textContent = message;
+      status.classList.toggle("playing", !audio.paused);
+      playButton.textContent = audio.paused ? "▶ Play Live Radio" : "❚❚ Pause Radio";
+    }
+
+    async function startStation() {
+      const id = station.value;
+      try {
+        localStorage.setItem("quad-radio-player-station", id);
+      } catch (_) {}
+
+      if (audio.dataset.station !== id) {
+        audio.pause();
+        audio.src = "/stream/" + encodeURIComponent(id);
+        audio.dataset.station = id;
+      }
+
+      updateStatus("Connecting to " + station.selectedOptions[0].text + "…");
+
+      try {
+        await audio.play();
+        updateStatus("Playing " + station.selectedOptions[0].text);
+      } catch (error) {
+        console.warn("Radio playback failed:", error);
+        updateStatus("Playback could not start. Press Play to try again.");
+      }
+    }
+
+
+    const nowTitle = document.querySelector("#now-title");
+    const nowArtist = document.querySelector("#now-artist");
+    const nowArt = document.querySelector("#now-art");
+    const nowArtPlaceholder = document.querySelector("#now-art-placeholder");
+
+    let artworkRequest = 0;
+    let lastSongKey = "";
+    let lastArtworkKey = "";
+
+    async function refreshNowPlaying() {
+      const requestNumber = ++artworkRequest;
+      const stationId = station.value;
+
+      try {
+        const response = await fetch("/api/data", {cache: "no-store"});
+        if (!response.ok) throw new Error("Could not load station data.");
+
+        const data = await response.json();
+        const stations = data.stations || [];
+        const currentStation = stations.find(item =>
+          item.id === stationId || item.station_id === stationId
+        );
+        const song = currentStation && currentStation.plays &&
+          currentStation.plays[0];
+
+        if (requestNumber !== artworkRequest) return;
+
+        if (!song || !song.title) {
+          lastSongKey = "";
+          lastArtworkKey = "";
+          nowTitle.textContent = "No song detected yet";
+          nowArtist.textContent = "Waiting for station information";
+          nowArt.hidden = true;
+          nowArtPlaceholder.hidden = false;
+          nowArt.removeAttribute("src");
+          return;
+        }
+
+        const title = song.title || "Unknown song";
+        const artist = song.artist || "Unknown artist";
+        const songKey = stationId + "|" + title + "|" + artist;
+
+        nowTitle.textContent = title;
+        nowArtist.textContent = artist;
+
+        if (songKey !== lastSongKey) {
+          lastSongKey = songKey;
+          lastArtworkKey = "";
+          nowArt.hidden = true;
+          nowArtPlaceholder.hidden = false;
+          nowArt.removeAttribute("src");
+        }
+
+        // Keep an existing image instead of reloading it every 10 seconds.
+        if (lastArtworkKey === songKey && nowArt.getAttribute("src")) {
+          return;
+        }
+
+        const artworkResponse = await fetch(
+          "/api/artwork?title=" + encodeURIComponent(title) +
+          "&artist=" + encodeURIComponent(artist),
+          {cache: "no-store"}
+        );
+
+        if (!artworkResponse.ok) {
+          throw new Error("Artwork API returned HTTP " + artworkResponse.status);
+        }
+
+        const artworkData = await artworkResponse.json();
+        if (requestNumber !== artworkRequest) return;
+
+        const artworkUrl = artworkData.artwork || artworkData.url ||
+          artworkData.image || artworkData.photo;
+
+        if (!artworkUrl) {
+          console.warn("No artwork URL returned for:", title, artist);
+          return;
+        }
+
+        lastArtworkKey = songKey;
+
+        nowArt.onload = () => {
+          nowArt.hidden = false;
+          nowArtPlaceholder.hidden = true;
+          console.log("Album artwork loaded:", title, artist);
+        };
+
+        nowArt.onerror = () => {
+          console.error("Album artwork failed to display:", artworkUrl);
+          nowArt.hidden = true;
+          nowArtPlaceholder.hidden = false;
+          lastArtworkKey = "";
+        };
+
+        nowArt.src = artworkUrl;
+
+        // Handle an image that the browser already has cached.
+        if (nowArt.complete && nowArt.naturalWidth > 0) {
+          nowArt.hidden = false;
+          nowArtPlaceholder.hidden = true;
+        }
+
+      } catch (error) {
+        console.warn("Now Playing artwork update failed:", error);
+      }
+    }
+
+    station.addEventListener("change", refreshNowPlaying);
+    refreshNowPlaying();
+    setInterval(refreshNowPlaying, 10000);
+
+    playButton.addEventListener("click", () => {
+      if (!audio.paused) {
+        audio.pause();
+        updateStatus("Radio paused.");
+      } else {
+        startStation();
+      }
+    });
+
+    station.addEventListener("change", () => {
+      try {
+        localStorage.setItem("quad-radio-player-station", station.value);
+      } catch (_) {}
+      if (!audio.paused) startStation();
+    });
+
+    volume.addEventListener("input", () => {
+      audio.volume = Number(volume.value);
+      try {
+        localStorage.setItem("quad-radio-player-volume", volume.value);
+      } catch (_) {}
+    });
+
+    audio.addEventListener("playing", () => {
+      updateStatus("Playing " + station.selectedOptions[0].text);
+    });
+
+    audio.addEventListener("pause", () => {
+      updateStatus("Radio paused.");
+    });
+
+    audio.addEventListener("error", () => {
+      updateStatus("Stream error. Try pressing Play again.");
+    });
+
+    // A dashboard handoff requests autoplay; normal player visits remain paused.
+    if (params.get("autoplay") === "1") {
+      startStation();
+    }
+
+</script>
+  <script src="/static/particles.js" defer></script>
+</body>
+</html>

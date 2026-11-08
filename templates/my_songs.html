@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Songs · Quad Radio</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/theme.js" defer></script>
+</head>
+<body class="my-songs-page">
+<header>
+  <div>
+    <div class="eyebrow">PERSONAL MUSIC COLLECTION</div>
+    <h1>GR<span>studios</span></h1>
+    <p>Create playlists and keep the songs you love.</p>
+  </div>
+  <nav class="site-nav">
+    <a href="/">Radio Dashboard</a>
+    <a href="/player" onclick="window.open(this.href, 'quadRadioPlayer', 'popup=yes,width=440,height=600,resizable=yes'); return false;">Radio Player ↗</a>
+    <a href="/notes">Documents</a>
+    <a class="active" href="/my-songs">My Songs</a>
+    <a href="/statistics">Statistics</a>
+    <a href="/discoveries">Discoveries</a>
+  </nav>
+  <label class="theme-control">Theme
+    <input class="theme-color-input" type="color" value="#ff405c"
+           data-theme-color aria-label="Choose website theme color">
+  </label>
+</header>
+
+<main class="my-songs-layout">
+  <section class="panel">
+    <div class="eyebrow">YOUR COLLECTION</div>
+    <h2>Make a playlist</h2>
+    <form id="create-playlist-form" class="create-playlist-form">
+      <input id="new-playlist-name" maxlength="100"
+             placeholder="Give your playlist a name" required>
+      <button type="submit">＋ Create playlist</button>
+    </form>
+    <p id="playlist-status" role="status" class="note"></p>
+    <h2>Your playlists</h2>
+    <div id="playlist-list" class="playlist-list">Loading playlists…</div>
+  </section>
+
+  <section class="panel playlist-detail">
+    <div class="eyebrow">SELECT A PLAYLIST</div>
+    <h2 id="selected-playlist-title">Your songs</h2>
+    <p id="selected-playlist-hint" class="note">
+      Choose a playlist to see its songs. Add songs from the Radio Dashboard.
+    </p>
+    <div id="playlist-songs" class="playlist-songs"></div>
+  </section>
+</main>
+
+<footer>QUAD RADIO · MY SONGS</footer>
+
+<script>
+const $ = selector => document.querySelector(selector);
+let allPlaylists = [];
+let selectedPlaylistId = null;
+
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  }[ch]));
+}
+
+async function loadPlaylists(keepSelection = true) {
+  const response = await fetch("/api/playlists");
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Could not load playlists.");
+  allPlaylists = data.playlists || [];
+
+  if (!keepSelection || !allPlaylists.some(p => p.id === selectedPlaylistId)) {
+    selectedPlaylistId = allPlaylists[0]?.id ?? null;
+  }
+
+  $("#playlist-list").innerHTML = allPlaylists.length
+    ? allPlaylists.map(p => `
+      <div class="playlist-row">
+        <button type="button" class="playlist-choice ${p.id === selectedPlaylistId ? "selected" : ""}"
+                data-playlist-id="${p.id}">
+          <span>♫ ${esc(p.name)}</span>
+          <small>${p.songs.length} song${p.songs.length === 1 ? "" : "s"}</small>
+        </button>
+        <button type="button" class="delete-playlist-button"
+                data-delete-playlist="${p.id}" aria-label="Delete ${esc(p.name)}">Delete</button>
+      </div>`).join("")
+    : '<p class="note">No playlists yet. Create your first one above.</p>';
+
+  renderSelectedPlaylist();
+}
+
+function renderSelectedPlaylist() {
+  const playlist = allPlaylists.find(p => p.id === selectedPlaylistId);
+  $("#selected-playlist-title").textContent = playlist ? playlist.name : "Your songs";
+  $("#selected-playlist-hint").textContent = playlist
+    ? `${playlist.songs.length} song${playlist.songs.length === 1 ? "" : "s"} in this playlist`
+    : "Choose a playlist to see its songs. Add songs from the Radio Dashboard.";
+
+  if (!playlist) {
+    $("#playlist-songs").innerHTML = "";
+    return;
+  }
+
+  $("#playlist-songs").innerHTML = playlist.songs.length
+    ? playlist.songs.map(song => `
+      <article class="saved-song">
+        <div class="saved-song-art"><span>♫</span>
+          <img alt="" data-art-title="${esc(song.title)}"
+               data-art-artist="${esc(song.artist)}" hidden>
+        </div>
+        <div class="saved-song-info">
+          <b>${esc(song.title)}</b>
+          <small>${esc(song.artist || "Artist not listed")}</small>
+          <small>${esc(song.station_name || "Added to My Songs")}</small>
+        </div>
+        <button type="button" class="remove-song-button"
+                data-remove-song="${song.id}" aria-label="Remove ${esc(song.title)}">Remove</button>
+      </article>`).join("")
+    : '<p class="note">This playlist is empty. Go to Radio Dashboard and press ＋ on a song to add it.</p>';
+
+  loadPlaylistArtwork();
+}
+
+async function loadPlaylistArtwork() {
+  const images = [...document.querySelectorAll("[data-art-title]")];
+  await Promise.all(images.map(async img => {
+    const params = new URLSearchParams({
+      title: img.dataset.artTitle || "",
+      artist: img.dataset.artArtist || ""
+    });
+    try {
+      const response = await fetch(`/api/artwork?${params}`);
+      const data = await response.json();
+      if (data.artwork && img.isConnected) {
+        img.onload = () => {
+          img.hidden = false;
+          img.previousElementSibling.hidden = true;
+        };
+        img.src = data.artwork;
+      }
+    } catch (error) {
+      console.warn("Artwork lookup failed:", error);
+    }
+  }));
+}
+
+$("#create-playlist-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const input = $("#new-playlist-name");
+  const status = $("#playlist-status");
+  const name = input.value.trim();
+  if (!name) return;
+  try {
+    const response = await fetch("/api/playlists", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({name})
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not create playlist.");
+    input.value = "";
+    selectedPlaylistId = result.id;
+    status.textContent = `Created "${result.name}".`;
+    await loadPlaylists();
+  } catch (error) {
+    status.textContent = error.message;
+  }
+});
+
+$("#playlist-list").addEventListener("click", async event => {
+  const deleteButton = event.target.closest("[data-delete-playlist]");
+  if (deleteButton) {
+    const playlist = allPlaylists.find(
+      p => p.id === Number(deleteButton.dataset.deletePlaylist)
+    );
+    if (!playlist || !confirm(`Delete "${playlist.name}" and all its songs?`)) return;
+
+    try {
+      const response = await fetch(`/api/playlists/${playlist.id}`, {
+        method: "DELETE"
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not delete playlist.");
+
+      if (selectedPlaylistId === playlist.id) selectedPlaylistId = null;
+      $("#playlist-status").textContent = `Deleted "${playlist.name}".`;
+      await loadPlaylists();
+    } catch (error) {
+      $("#playlist-status").textContent = error.message;
+    }
+    return;
+  }
+
+  const button = event.target.closest("[data-playlist-id]");
+  if (!button) return;
+  selectedPlaylistId = Number(button.dataset.playlistId);
+  loadPlaylists();
+});
+
+$("#playlist-songs").addEventListener("click", async event => {
+  const button = event.target.closest("[data-remove-song]");
+  if (!button || !selectedPlaylistId) return;
+  if (!confirm("Remove this song from the playlist?")) return;
+  const response = await fetch(
+    `/api/playlists/${selectedPlaylistId}/songs/${button.dataset.removeSong}`,
+    {method: "DELETE"}
+  );
+  const result = await response.json();
+  if (!response.ok) {
+    $("#playlist-status").textContent = result.error || "Could not remove song.";
+    return;
+  }
+  await loadPlaylists();
+});
+
+
+
+loadPlaylists().catch(error => {
+  $("#playlist-list").textContent = error.message;
+});
+</script>
+  <script src="/static/particles.js" defer></script>
+</body>
+</html>

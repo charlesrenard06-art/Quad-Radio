@@ -1,0 +1,151 @@
+{
+  "poll_seconds": 60,
+  "ollama_url": "http://127.0.0.1:11434",
+  "ollama_model": "qwen2.5:3b",
+  "stations": [
+    {
+      "id": "live993",
+      "name": "Fredericksburg Live 99.3",
+      "frequency": "99.3 FM",
+      "market": "Fredericksburg, Virginia",
+      "timezone": "America/New_York",
+      "source_type": "netplayer",
+      "url": "https://netplayer.net/radio/live-99-3-65502/recently-played"
+    },
+    {
+      "id": "mix951",
+      "name": "Mix 95.1",
+      "frequency": "95.1 FM",
+      "market": "Chambersburg, Pennsylvania",
+      "timezone": "America/New_York",
+      "source_type": "mix951",
+      "url": "https://www.mix95.com/recently-played/"
+    },
+    {
+      "id": "live955",
+      "name": "KBFF Live 95.5",
+      "frequency": "95.5 FM",
+      "market": "Portland, Oregon",
+      "timezone": "America/Los_Angeles",
+      "source_type": "netplayer",
+      "url": "https://netplayer.net/radio/live-95-5-66497/recently-played"
+    },
+    {
+      "id": "kkez945",
+      "name": "Mix 94.5 FM (KKEZ)",
+      "frequency": "94.5 FM",
+      "market": "Fort Dodge, Iowa",
+      "timezone": "America/Chicago",
+      "source_type": "kkez_spincounts",
+      "url": "https://spincounts.com/station/mix-94-5-2/"
+    },
+    {
+      "id": "kelly953",
+      "name": "Kelly 95.3",
+      "frequency": "95.3 FM",
+      "market": "Bakersfield, California",
+      "timezone": "America/Los_Angeles",
+      "source_type": "netplayer",
+      "url": "https://netplayer.net/radio/kelly-95-3-70993/recently-played"
+    },
+    {
+      "id": "alt997",
+      "name": "ALT 99.7",
+      "frequency": "99.7 FM",
+      "market": "Columbia, South Carolina",
+      "timezone": "America/New_York",
+      "source_type": "netplayer",
+      "url": "https://netplayer.net/radio/alt-99-7-50418/recently-played"
+    },
+    {
+      "id": "now997",
+      "name": "99.7 NOW",
+      "frequency": "99.7 FM",
+      "market": "San Francisco, California",
+      "timezone": "America/Los_Angeles",
+      "source_type": "spincounts",
+      "url": "https://spincounts.com/station/99-7-now/"
+    },
+    {
+      "id": "movin925",
+      "name": "MOViN 92.5 KQMV",
+      "frequency": "92.5 FM",
+      "market": "Seattle, Washington",
+      "timezone": "America/Los_Angeles",
+      "source_type": "spincounts",
+      "url": "https://spincounts.com/station/movin-92-5-kqmv/"
+    },
+    {
+      "id": "djx997",
+      "name": "99.7 DJX",
+      "frequency": "99.7 FM",
+      "market": "Louisville, Kentucky",
+      "timezone": "America/New_York",
+      "source_type": "netplayer",
+      "url": "https://netplayer.net/radio/99-7-djx-42211/recently-played"
+    },
+    {
+      "id": "mix941",
+      "name": "Mix 94.1",
+      "frequency": "94.1 FM",
+      "market": "Canton, Ohio",
+      "timezone": "America/New_York",
+      "source_type": "netplayer",
+      "url": "https://netplayer.net/radio/mix-94-1-38864/recently-played"
+    },
+    {
+      "id": "z100pdx",
+      "name": "Z100 Portland",
+      "frequency": "100.3 FM",
+      "market": "Portland, Oregon",
+      "timezone": "America/Los_Angeles",
+      "source_type": "netplayer",
+      "url": "https://netplayer.net/radio/z-100-portland-19723/recently-played"
+    },
+    {
+      "id": "z100nyc",
+      "name": "Z100 New York",
+      "frequency": "100.3 FM",
+      "market": "New York, New York",
+      "timezone": "America/New_York",
+      "source_type": "netplayer",
+      "url": "https://netplayer.net/radio/z-100-61622/recently-played"
+    },
+    {
+      "id": "live967",
+      "name": "Live 96.7 WDLD",
+      "frequency": "96.7 FM",
+      "market": "Halfway, Maryland",
+      "timezone": "America/New_York",
+      "source_type": "netplayer",
+      "url": "https://netplayer.net/radio/live-96-7-96196/recently-played"
+    },
+    {
+      "id": "mix1065",
+      "name": "Mix 106.5 San Jose",
+      "frequency": "106.5 FM",
+      "market": "San Jose, California",
+      "timezone": "America/Los_Angeles",
+      "source_type": "netplayer",
+      "url": "https://netplayer.net/radio/mix-106-5-36578/recently-played"
+    },
+    {
+      "id": "kpsi1005",
+      "name": "MIX 100.5 FM (KPSI-FM)",
+      "frequency": "100.5 FM",
+      "market": "Palm Springs, California",
+      "timezone": "America/Los_Angeles",
+      "source_type": "netplayer",
+      "url": "https://netplayer.net/radio/mix-100-5-fm-76243/recently-played"
+    },
+    {
+      "id": "kfrx1063",
+      "name": "106.3 KFRX",
+      "frequency": "106.3 FM",
+      "market": "Lincoln, Nebraska",
+      "timezone": "America/Chicago",
+      "source_type": "netplayer",
+      "url": "https://netplayer.net/radio/106-3-kfrx-88972/recently-played"
+    }
+  ]
+}

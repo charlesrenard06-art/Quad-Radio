@@ -1824,7 +1824,7 @@ def update_install():
             }), 409
 
         log_path = DATA_DIR / "updater.log"
-        log_file = open(log_path, "a", buffering=1)
+        log_file = open(log_path, "w", buffering=1)
 
         subprocess.Popen(
             [
@@ -1845,11 +1845,62 @@ def update_install():
         return jsonify({
             "started": True,
             "version": latest,
-            "message": "Update downloaded and validated; installation is starting."
+            "message": "Installer started. Downloading and validating the update."
         }), 202
 
     except Exception as error:
         return jsonify({"error": str(error)}), 500
+
+
+@app.get("/api/update/status")
+def update_status():
+    if not _update_request_is_local():
+        return jsonify({"error": "Local access only."}), 403
+
+    log_path = DATA_DIR / "updater.log"
+
+    try:
+        if not log_path.is_file():
+            return jsonify({
+                "state": "starting",
+                "message": "Starting installer..."
+            })
+
+        with open(log_path, "r", encoding="utf-8", errors="replace") as log:
+            content = log.read()[-20000:]
+
+        import re
+
+        success = re.search(
+            r"Updated successfully to version ([0-9]+\.[0-9]+\.[0-9]+)\.",
+            content
+        )
+
+        if success:
+            return jsonify({
+                "state": "complete",
+                "version": success.group(1),
+                "message": f"Quad Radio {success.group(1)} installed successfully."
+            })
+
+        failure = re.findall(r"Updater error:.*", content)
+
+        if failure:
+            return jsonify({
+                "state": "failed",
+                "message": failure[-1]
+            })
+
+        return jsonify({
+            "state": "running",
+            "message": "Downloading, verifying, and installing the update..."
+        })
+
+    except Exception as error:
+        return jsonify({
+            "state": "failed",
+            "message": f"Could not read updater status: {error}"
+        }), 500
 
 
 if __name__ == "__main__":

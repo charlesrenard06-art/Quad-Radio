@@ -823,39 +823,96 @@ updateButton.addEventListener('click', async () => {
 
     updateStatus.textContent = result.message;
 
-    if (result.update_available) {
-      const approved = confirm(
-        `Quad Radio ${result.latest_version} is available. ` +
-        `Install it now? Your listening history, notes and saved songs will be preserved.`
-      );
+    if (!result.update_available) return;
 
-      if (approved) {
-        updateButton.textContent = 'Installing…';
-        updateStatus.textContent = 'Preparing the update. The dashboard will restart shortly.';
+    const approved = confirm(
+      `Quad Radio ${result.latest_version} is available. ` +
+      `Install it now? Your listening history, notes and saved songs will be preserved.`
+    );
 
-        const installResponse = await fetch('/api/update/install', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: '{}'
+    if (!approved) return;
+
+    updateButton.textContent = 'Starting installer…';
+    updateStatus.textContent = 'Starting the update installer…';
+
+    const installResponse = await fetch('/api/update/install', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: '{}'
+    });
+
+    const installResult = await installResponse.json();
+
+    if (!installResponse.ok) {
+      throw new Error(installResult.error || 'Could not start installation.');
+    }
+
+    updateStatus.textContent =
+      `Downloading and installing Quad Radio ${installResult.version}. Do not close this page.`;
+
+    let completed = false;
+
+    for (let i = 0; i < 300; i++) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      let status;
+
+      try {
+        const statusResponse = await fetch('/api/update/status', {
+          cache: 'no-store'
         });
-        const installResult = await installResponse.json();
 
-        if (!installResponse.ok) {
-          throw new Error(installResult.error || 'Could not start installation.');
+        if (!statusResponse.ok) {
+          updateStatus.textContent =
+            'Waiting for the dashboard to respond…';
+          continue;
         }
 
-        updateStatus.textContent =
-          `Installing version ${installResult.version}. Please wait for the dashboard to restart.`;
+        status = await statusResponse.json();
 
-        setTimeout(() => window.location.reload(), 12000);
-        return;
+      } catch (_) {
+        updateStatus.textContent =
+          'Dashboard is restarting. Waiting for it to return…';
+        continue;
       }
+
+      if (status.state === 'failed') {
+        throw new Error(status.message || 'The update installer failed.');
+      }
+
+      if (status.state === 'complete') {
+        updateStatus.textContent = status.message;
+        updateButton.textContent = 'Update installed — restarting…';
+        completed = true;
+        break;
+      }
+
+      updateStatus.textContent =
+        status.message || 'Update is still running…';
     }
+
+    if (!completed) {
+      throw new Error(
+        'Update did not report completion within 10 minutes. Check updater.log.'
+      );
+    }
+
+    updateStatus.textContent += ' Reloading dashboard…';
+    setTimeout(() => window.location.reload(), 2000);
+    return;
+
   } catch (error) {
     updateStatus.textContent = error.message;
-  } finally {
+    updateButton.textContent = 'Update failed';
     updateButton.disabled = false;
-    updateButton.textContent = '↻ Check for updates';
+    return;
+
+  } finally {
+    if (updateButton.textContent !== 'Update failed' &&
+        updateButton.textContent !== 'Update installed — restarting…') {
+      updateButton.disabled = false;
+      updateButton.textContent = '↻ Check for updates';
+    }
   }
 });
 

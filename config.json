@@ -27,8 +27,8 @@
       "frequency": "95.5 FM",
       "market": "Portland, Oregon",
       "timezone": "America/Los_Angeles",
-      "source_type": "netplayer",
-      "url": "https://netplayer.net/radio/live-95-5-66497/recently-played"
+      "source_type": "live955",
+      "url": "https://www.live955.com/recently-played/"
     },
     {
       "id": "kkez945",

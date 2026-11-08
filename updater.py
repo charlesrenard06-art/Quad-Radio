@@ -72,21 +72,78 @@ def latest_release():
 
 
 def download(url, destination, limit):
-    total = 0
-    with requests.get(
-        url, headers={"User-Agent": USER_AGENT},
-        stream=True, timeout=(15, 60)
-    ) as response:
-        response.raise_for_status()
-        with open(destination, "wb") as output:
-            for chunk in response.iter_content(256 * 1024):
-                if not chunk:
-                    continue
-                total += len(chunk)
-                if total > limit:
-                    raise RuntimeError("Download exceeded the size limit.")
-                output.write(chunk)
+    """Download a release asset with retries for temporary network failures."""
+    destination = Path(destination)
+    retryable_statuses = {408, 425, 429, 500, 502, 503, 504}
+    last_error = None
 
+    for attempt in range(4):
+        total = 0
+
+        try:
+            if destination.exists():
+                destination.unlink()
+
+            with requests.get(
+                url,
+                headers={"User-Agent": USER_AGENT},
+                stream=True,
+                timeout=(20, 90),
+            ) as response:
+                response.raise_for_status()
+
+                with open(destination, "wb") as output:
+                    for chunk in response.iter_content(256 * 1024):
+                        if not chunk:
+                            continue
+
+                        total += len(chunk)
+                        if total > limit:
+                            raise RuntimeError(
+                                "Download exceeded the size limit."
+                            )
+
+                        output.write(chunk)
+
+            if total == 0:
+                raise RuntimeError("Downloaded release asset is empty.")
+
+            return
+
+        except requests.exceptions.RequestException as error:
+            last_error = error
+
+            if destination.exists():
+                destination.unlink()
+
+            status = getattr(
+                getattr(error, "response", None),
+                "status_code",
+                None,
+            )
+
+            if status is not None and status not in retryable_statuses:
+                raise
+
+            if attempt == 3:
+                break
+
+            delay = 2 ** (attempt + 1)
+            print(
+                f"Download attempt {attempt + 1}/4 failed "
+                f"({error}); retrying in {delay}s...",
+                flush=True,
+            )
+            time.sleep(delay)
+
+        except Exception:
+            if destination.exists():
+                destination.unlink()
+            raise
+
+    raise RuntimeError(
+        f"Release download failed after 4 attempts: {last_error}"
+    )
 
 def verified_archive(zip_path, checksum_path):
     expected = checksum_path.read_text().strip().split()[0].lower()

@@ -280,7 +280,7 @@ async function load() {
                hidden>
         </div>
         <div class="track-info">
-          <div class="song">${p ? e(p.title) : 'No plays saved yet'}</div>
+          <div class="song">${p ? `<a class="song-page-link" href="/song/${encodeURIComponent(p.id)}">${e(p.title)}</a>` : 'No plays saved yet'}</div>
           <div class="artist">${p ? e(p.artist || 'Artist not separated by source') : e(s.note || 'Waiting for first collection')}</div>
         </div>
       </div>
@@ -397,7 +397,7 @@ function renderHistory() {
                  data-artist="${e(p.artist || '')}" alt="" hidden>
           </div>
           <div class="history-song-text">
-            <b>${e(p.title)}</b>
+            <b><a class="song-page-link" href="/song/${encodeURIComponent(p.id)}">${e(p.title)}</a></b>
             <small>${e(p.artist)}</small>
           </div>
         </div>

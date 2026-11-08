@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ song.title }} — Quad Radio</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .song-page { max-width: 1120px; margin: 0 auto; padding: 28px 18px 48px; }
+    .song-back { display: inline-block; margin-bottom: 18px; color: var(--muted); text-decoration: none; }
+    .song-hero { display: grid; grid-template-columns: 190px minmax(0,1fr); gap: 25px; align-items: center; padding: 25px; }
+    .song-cover { width: 190px; aspect-ratio: 1; border-radius: 17px; display: grid; place-items: center; background: linear-gradient(145deg,var(--accent),#211323); color: white; font-size: 70px; box-shadow: 0 14px 38px #0005; overflow: hidden; }
+    .song-cover img { width: 100%; height: 100%; object-fit: cover; }
+    .song-heading h1 { margin: 5px 0 8px; font-size: clamp(26px,5vw,43px); overflow-wrap: anywhere; }
+    .song-heading p { color: var(--muted); margin: 0; font-size: 16px; }
+    .song-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 13px; margin: 17px 0; }
+    .song-stat { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); min-width: 0; }
+    .song-stat span { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+    .song-stat strong { display: block; margin-top: 7px; font-size: clamp(19px,3vw,27px); overflow-wrap: anywhere; }
+    .song-panel { padding: 21px; margin-top: 16px; min-width: 0; }
+    .song-panel h2 { margin: 4px 0 15px; }
+    .song-station-list { display: grid; gap: 10px; }
+    .song-station { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--line); }
+    .song-station small { display: block; color: var(--muted); margin-top: 4px; }
+    .song-count { font-weight: 800; font-variant-numeric: tabular-nums; }
+    .song-timeline { display: grid; gap: 10px; }
+    .song-day { display: grid; grid-template-columns: 110px minmax(30px,1fr) 35px; align-items: center; gap: 10px; font-size: 12px; }
+    .song-day-label { color: var(--muted); }
+    .song-bar-track { height: 10px; border-radius: 20px; overflow: hidden; background: var(--line); }
+    .song-bar { height: 100%; min-width: 2px; border-radius: inherit; background: var(--accent); }
+    .song-history-wrap { overflow-x: auto; }
+    .song-history { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+    .song-history th,.song-history td { padding: 12px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    .song-history th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
+    .song-muted { color: var(--muted); font-size: 12px; }
+    @media(max-width:700px) {
+      .song-hero { grid-template-columns: 100px minmax(0,1fr); gap: 15px; padding: 16px; }
+      .song-cover { width: 100px; font-size: 42px; }
+      .song-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .song-stat { padding: 14px; }
+      .song-day { grid-template-columns: 82px minmax(20px,1fr) 25px; gap: 6px; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="eyebrow">QUAD RADIO · TRACK ARCHIVE</div>
+    <h1>GR<span>studios</span></h1>
+    <p>Song intelligence across your radio stations.</p>
+  </div>
+  <nav class="site-nav">
+    <a href="/">Radio Dashboard</a>
+    <a href="/player" onclick="window.open(this.href,'quadRadioPlayer','popup=yes,width=440,height=600,resizable=yes');return false;">Radio Player ↗</a>
+    <a href="/my-songs">My Songs</a>
+    <a href="/statistics">Statistics</a>
+    <a href="/discoveries">Discoveries</a>
+  </nav>
+</header>
+
+<main class="song-page">
+  <a class="song-back" href="/">← Back to Radio Dashboard</a>
+
+  <section class="panel song-hero">
+    <div class="song-cover" id="song-cover">♫</div>
+    <div class="song-heading">
+      <div class="eyebrow">TRACK PROFILE</div>
+      <h1>{{ song.title }}</h1>
+      <p>{{ song.artist if song.artist else "Artist not identified by source" }}</p>
+      <p class="song-muted" style="margin-top:12px">Combined history across every tracked station</p>
+    </div>
+  </section>
+
+  <section class="song-stats">
+    <article class="song-stat"><span>Total detections</span><strong>{{ "{:,}".format(song.total_detections) }}</strong></article>
+    <article class="song-stat"><span>Stations detected</span><strong>{{ song.station_count }}</strong></article>
+    <article class="song-stat"><span>First detected</span><strong style="font-size:15px">{{ song.first_seen[:16].replace("T"," ") if song.first_seen else "—" }}</strong></article>
+    <article class="song-stat"><span>Last detected</span><strong style="font-size:15px">{{ song.last_seen[:16].replace("T"," ") if song.last_seen else "—" }}</strong></article>
+  </section>
+
+  <section class="panel song-panel">
+    <div class="eyebrow">STATION BREAKDOWN</div>
+    <h2>Where this song was detected</h2>
+    <div class="song-station-list">
+      {% for station in stations %}
+      <div class="song-station">
+        <div><strong>{{ station.station_name }}</strong><small>First: {{ station.first_seen[:16].replace("T"," ") }} · Last: {{ station.last_seen[:16].replace("T"," ") }}</small></div>
+        <div class="song-count">{{ "{:,}".format(station.detections) }} detections</div>
+      </div>
+      {% else %}<p class="song-muted">No station records found.</p>{% endfor %}
+    </div>
+  </section>
+
+  <section class="panel song-panel">
+    <div class="eyebrow">DETECTION FREQUENCY</div>
+    <h2>Detection timeline</h2>
+    {% set peak = (timeline|map(attribute='detections')|max) if timeline else 1 %}
+    <div class="song-timeline">
+      {% for day in timeline %}
+      <div class="song-day">
+        <span class="song-day-label">{{ day.day }}</span>
+        <div class="song-bar-track"><div class="song-bar" style="width:{{ (day.detections / peak * 100)|round(1) }}%"></div></div>
+        <strong>{{ day.detections }}</strong>
+      </div>
+      {% else %}<p class="song-muted">No timeline data available.</p>{% endfor %}
+    </div>
+    <p class="song-muted" style="margin-top:14px">Each bar represents the number of saved detections on that date.</p>
+  </section>
+
+  <section class="panel song-panel">
+    <div class="eyebrow">COMPLETE ARCHIVE</div>
+    <h2>Listening history</h2>
+    <div class="song-history-wrap">
+      <table class="song-history">
+        <thead><tr><th>Station</th><th>Detected at</th><th>Timestamp quality</th><th>Record</th></tr></thead>
+        <tbody>
+        {% for play in history %}
+          <tr>
+            <td>{{ play.station_name }}</td>
+            <td>{{ play.played_at[:19].replace("T"," ") }}</td>
+            <td>{{ play.time_accuracy }}</td>
+            <td>#{{ play.id }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4">No saved detections.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="song-muted" style="margin-top:12px">Counts are based on saved source detections, not independently verified listener plays.</p>
+  </section>
+</main>
+<footer>QUAD RADIO · SONG PROFILE</footer>
+
+<script>
+(async () => {
+  const cover = document.getElementById("song-cover");
+  const params = new URLSearchParams({
+    title: {{ song.title|tojson }},
+    artist: {{ song.artist|tojson }}
+  });
+  try {
+    const response = await fetch("/api/artwork?" + params);
+    const data = await response.json();
+    if (data.artwork) {
+      const img = document.createElement("img");
+      img.alt = "Album artwork";
+      img.src = data.artwork;
+      img.onerror = () => img.remove();
+      cover.replaceChildren(img);
+    }
+  } catch (error) {
+    console.warn("Song artwork unavailable:", error);
+  }
+})();
+</script>
+</body>
+</html>

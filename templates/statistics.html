@@ -55,7 +55,7 @@
         {% for song in songs %}
           <tr>
             <td>{{ loop.index }}</td>
-            <td><strong>{{ song.title }}</strong><small>{% if song.artist %}<a class="artist-link" href="{{ url_for('artist_profile', artist_name=song.artist) }}">{{ song.artist }}</a>{% else %}Unknown artist{% endif %}</small></td>
+            <td><strong><a class="song-page-link" href="{{ url_for('song_profile', play_id=song.id) }}">{{ song.title }}</a></strong><small>{% if song.artist %}<a class="artist-link" href="{{ url_for('artist_profile', artist_name=song.artist) }}">{{ song.artist }}</a>{% else %}Unknown artist{% endif %}</small></td>
             <td>{{ song.plays }}</td>
             <td>{{ song.station_count }}</td>
             <td>{{ song.first_played[:16].replace("T", " ") }}</td>

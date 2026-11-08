@@ -986,6 +986,7 @@ def station_page(station_id):
 
         top_songs = [dict(r) for r in db.execute(f"""
             SELECT
+                MIN(id) AS id,
                 MIN(TRIM(title)) AS title,
                 MIN(TRIM(artist)) AS artist,
                 COUNT(*) AS detections,
@@ -1048,6 +1049,8 @@ def statistics_page():
 
         songs = [dict(r) for r in db.execute(f"""
             SELECT
+                MIN(id) AS id,
+
                 MIN(TRIM(title)) AS title,
                 MIN(TRIM(artist)) AS artist,
                 COUNT(*) AS plays,
@@ -1091,6 +1094,85 @@ def statistics_page():
         songs=songs,
         artists=artists,
         stations=stations
+    )
+
+
+
+
+@app.get("/song/<int:play_id>")
+def song_profile(play_id):
+    with connect() as db:
+        seed = db.execute(f"""
+            SELECT TRIM(title) AS title,
+                   TRIM(COALESCE(artist, '')) AS artist
+            FROM plays
+            WHERE id = ? AND {VALID_PLAY_FILTER}
+        """, (play_id,)).fetchone()
+
+        if not seed or not seed["title"]:
+            return "Song not found in verified radio history.", 404
+
+        title_key = seed["title"].strip().casefold()
+        artist_key = seed["artist"].strip().casefold()
+
+        matching = f"""
+            {VALID_PLAY_FILTER}
+            AND LOWER(TRIM(title)) = ?
+            AND LOWER(TRIM(COALESCE(artist, ''))) = ?
+        """
+        params = (title_key, artist_key)
+
+        stats_row = db.execute(f"""
+            SELECT
+                MIN(TRIM(title)) AS title,
+                MIN(TRIM(COALESCE(artist, ''))) AS artist,
+                COUNT(*) AS total_detections,
+                COUNT(DISTINCT station_id) AS station_count,
+                MIN(played_at) AS first_seen,
+                MAX(played_at) AS last_seen
+            FROM plays
+            WHERE {matching}
+        """, params).fetchone()
+        stats = dict(stats_row)
+
+        stations = [dict(r) for r in db.execute(f"""
+            SELECT
+                station_id,
+                station_name,
+                COUNT(*) AS detections,
+                MIN(played_at) AS first_seen,
+                MAX(played_at) AS last_seen
+            FROM plays
+            WHERE {matching}
+            GROUP BY station_id, station_name
+            ORDER BY detections DESC, station_name COLLATE NOCASE
+        """, params)]
+
+        timeline = [dict(r) for r in db.execute(f"""
+            SELECT
+                SUBSTR(played_at, 1, 10) AS day,
+                COUNT(*) AS detections
+            FROM plays
+            WHERE {matching}
+            GROUP BY SUBSTR(played_at, 1, 10)
+            ORDER BY day
+        """, params)]
+
+        history = [dict(r) for r in db.execute(f"""
+            SELECT
+                id, station_id, station_name, played_at,
+                collected_at, time_accuracy, source_url
+            FROM plays
+            WHERE {matching}
+            ORDER BY played_at DESC, id DESC
+        """, params)]
+
+    return render_template(
+        "song_profile.html",
+        song=stats,
+        stations=stations,
+        timeline=timeline,
+        history=history
     )
 
 
